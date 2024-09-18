@@ -7,7 +7,7 @@
 #include <optional>
 
 
-template<class T>
+template<typename T>
 class VariableImpl {
 public:
     VariableImpl() : _value(T(0)), _grad(T(0)), _requires_grad(false), _is_leaf(false) {}

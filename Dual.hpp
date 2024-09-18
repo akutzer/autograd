@@ -4,7 +4,7 @@
 #include<cmath>
 
 
-template<class T>
+template<typename T>
 class Dual {
     private:
         T _primal, _tangent;
@@ -47,101 +47,101 @@ class Dual {
             return Dual<T>(std::cos(_primal), -std::sin(_primal) * _tangent);
         }
 
-        template<class U>
+        template<typename U>
         friend std::ostream& operator<<(std::ostream& ios, const Dual<U>& dual);
 
-        template<class A, class B>
+        template<typename A, class B>
         friend Dual<typename std::common_type<A, B>::type> operator+(const Dual<A>& lhs, const Dual<B>& rhs);
-        template<class A, class B>
+        template<typename A, class B>
         friend Dual<typename std::common_type<A, B>::type> operator+(const Dual<A>& lhs, const B& rhs);
-        template<class A, class B>
+        template<typename A, class B>
         friend Dual<typename std::common_type<A, B>::type> operator+(const A& lhs, const Dual<B>& rhs);
 
-        template<class A, class B>
+        template<typename A, class B>
         friend Dual<typename std::common_type<A, B>::type> operator-(const Dual<A>& lhs, const Dual<B>& rhs);
-        template<class A, class B>
+        template<typename A, class B>
         friend Dual<typename std::common_type<A, B>::type> operator-(const Dual<A>& lhs, const B& rhs);
-        template<class A, class B>
+        template<typename A, class B>
         friend Dual<typename std::common_type<A, B>::type> operator-(const A& lhs, const Dual<B>& rhs);
 
-        template<class A, class B>
+        template<typename A, class B>
         friend Dual<typename std::common_type<A, B>::type> operator*(const Dual<A>& lhs, const Dual<B>& rhs);
-        template<class A, class B>
+        template<typename A, class B>
         friend Dual<typename std::common_type<A, B>::type> operator*(const Dual<A>& lhs, const B& rhs);
-        template<class A, class B>
+        template<typename A, class B>
         friend Dual<typename std::common_type<A, B>::type> operator*(const A& lhs, const Dual<B>& rhs);
 
-        template<class A, class B>
+        template<typename A, class B>
         friend Dual<typename std::common_type<A, B>::type> operator/(const Dual<A>& lhs, const Dual<B>& rhs);
-        template<class A, class B>
+        template<typename A, class B>
         friend Dual<typename std::common_type<A, B>::type> operator/(const Dual<A>& lhs, const B& rhs);
-        template<class A, class B>
+        template<typename A, class B>
         friend Dual<typename std::common_type<A, B>::type> operator/(const A& lhs, const Dual<B>& rhs);
 
 
 
 };
 
-template<class T>
+template<typename T>
 std::ostream& operator<<(std::ostream& os, const Dual<T>& dual) {
     os << "Dual(" << dual._primal << ", " << dual._tangent << ")";
     return os;
 }
 
 
-template<class A, class B>
+template<typename A, class B>
 Dual<typename std::common_type<A, B>::type> operator+(const Dual<A>& lhs, const Dual<B>& rhs) {
     using X = typename std::common_type<A, B>::type;
 
     return Dual<X>(lhs._primal + rhs._primal, 1 * lhs._tangent + 1 * rhs._tangent);
 }
 
-template<class A, class B>
+template<typename A, class B>
 Dual<typename std::common_type<A, B>::type> operator+(const Dual<A>& lhs, const B& rhs) {
     return lhs + Dual<B>(rhs, 0);
 }
 
-template<class A, class B>
+template<typename A, class B>
 Dual<typename std::common_type<A, B>::type> operator+(const A& lhs, const Dual<B>& rhs) {
     return Dual<A>(lhs, 0) + rhs;
 }
 
 
-template<class A, class B>
+template<typename A, class B>
 Dual<typename std::common_type<A, B>::type> operator-(const Dual<A>& lhs, const Dual<B>& rhs) {
     return lhs + rhs.negate();
 }
 
-template<class A, class B>
+template<typename A, class B>
 Dual<typename std::common_type<A, B>::type> operator-(const Dual<A>& lhs, const B& rhs) {
     return lhs - Dual<B>(rhs, 0);
 }
 
-template<class A, class B>
+template<typename A, class B>
 Dual<typename std::common_type<A, B>::type> operator-(const A& lhs, const Dual<B>& rhs) {
     return Dual<A>(lhs, 0) - rhs;
 }
 
 
-template<class A, class B>
+template<typename A, class B>
 Dual<typename std::common_type<A, B>::type> operator*(const Dual<A>& lhs, const Dual<B>& rhs) {
     using X = typename std::common_type<A, B>::type;
     // Dual(a * b, da/dx * b + a * db/dx)
     return Dual<X>(lhs._primal * rhs._primal, lhs._tangent * rhs._primal + lhs._primal * rhs._tangent);
 }
 
-template<class A, class B>
+template<typename A, class B>
 Dual<typename std::common_type<A, B>::type> operator*(const Dual<A>& lhs, const B& rhs) {
     return lhs * Dual<B>(rhs, 0);
 }
 
-template<class A, class B>
+template<typename A, class B>
 Dual<typename std::common_type<A, B>::type> operator*(const A& lhs, const Dual<B>& rhs) {
     return Dual<A>(lhs, 0) * rhs;
 }
 
 
-template<class A, class B>
+template<typename A, class B>
 Dual<typename std::common_type<A, B>::type> operator/(const Dual<A>& lhs, const Dual<B>& rhs) {
     // Dual(a / b, (da/dx * b - a * db/dx) / b²)
     // Dual(a * 1/b, (da/dx * 1/b - a * 1/b² * db/dx))
@@ -150,12 +150,12 @@ Dual<typename std::common_type<A, B>::type> operator/(const Dual<A>& lhs, const 
     return lhs * rhs.reciprocal();
 }
 
-template<class A, class B>
+template<typename A, class B>
 Dual<typename std::common_type<A, B>::type> operator/(const Dual<A>& lhs, const B& rhs) {
     return lhs / Dual<B>(rhs, 0);
 }
 
-template<class A, class B>
+template<typename A, class B>
 Dual<typename std::common_type<A, B>::type> operator/(const A& lhs, const Dual<B>& rhs) {
     return Dual<A>(lhs, 0) / rhs;
 }

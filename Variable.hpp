@@ -18,7 +18,7 @@ namespace GradRegistry {
     }
 
     template<class T>
-    std::vector<T> add_bwd(const Variable<T>& lhs, const Variable<T>& rhs, const T& prev_grad) {
+    std::vector<T> add_bwd(const VariableImpl<T>& lhs, const VariableImpl<T>& rhs, const T& prev_grad) {
         return {prev_grad, prev_grad};
     }
 
@@ -28,7 +28,7 @@ namespace GradRegistry {
     }
 
     template<class T>
-    std::vector<T> sub_bwd(const Variable<T>& lhs, const Variable<T>& rhs, const T& prev_grad) {
+    std::vector<T> sub_bwd(const VariableImpl<T>& lhs, const VariableImpl<T>& rhs, const T& prev_grad) {
         return {prev_grad, -prev_grad};
     }
 
@@ -38,7 +38,7 @@ namespace GradRegistry {
     }
 
     template<class T>
-    std::vector<T> mul_bwd(const Variable<T>& lhs, const Variable<T>& rhs, const T& prev_grad) {
+    std::vector<T> mul_bwd(const VariableImpl<T>& lhs, const VariableImpl<T>& rhs, const T& prev_grad) {
         return {prev_grad * rhs.value(), prev_grad * lhs.value()};
     }
 
@@ -48,7 +48,7 @@ namespace GradRegistry {
     }
 
     template<class T>
-    std::vector<T> div_bwd(const Variable<T>& lhs, const Variable<T>& rhs, const T& prev_grad) {
+    std::vector<T> div_bwd(const VariableImpl<T>& lhs, const VariableImpl<T>& rhs, const T& prev_grad) {
         return {prev_grad * 1 / rhs.value(), prev_grad * -lhs.value() / (rhs.value() * rhs.value())};
     }
 
@@ -58,7 +58,7 @@ namespace GradRegistry {
     }
 
     template<class T>
-    std::vector<T> exp_bwd(const Variable<T>& var, const T& prev_grad) {
+    std::vector<T> exp_bwd(const VariableImpl<T>& var, const T& prev_grad) {
         return {prev_grad * std::exp(var.value())};
     }
 
@@ -68,7 +68,7 @@ namespace GradRegistry {
     }
 
     template<class T>
-    std::vector<T> log_bwd(const Variable<T>& var, const T& prev_grad) {
+    std::vector<T> log_bwd(const VariableImpl<T>& var, const T& prev_grad) {
         return {prev_grad * 1 / var.value()};
     }
 
@@ -78,7 +78,7 @@ namespace GradRegistry {
     }
 
     template<class T>
-    std::vector<T> sin_bwd(const Variable<T>& var, const T& prev_grad) {
+    std::vector<T> sin_bwd(const VariableImpl<T>& var, const T& prev_grad) {
         return {prev_grad * std::cos(var.value())};
     }
 
@@ -88,7 +88,7 @@ namespace GradRegistry {
     }
 
     template<class T>
-    std::vector<T> cos_bwd(const Variable<T>& var, const T& prev_grad) {
+    std::vector<T> cos_bwd(const VariableImpl<T>& var, const T& prev_grad) {
         return {prev_grad * -std::sin(var.value())};
     }
 }
@@ -103,14 +103,30 @@ public:
 
     Variable(T value, bool requires_grad = false, bool is_leaf = true)
         : _variable(std::make_shared<VariableImpl<T>>(value, requires_grad, is_leaf)) {}
+    
+    Variable(Variable<T>& other) {
+        _variable = other._variable;
+        if (_variable)
+            _variable->increment_ref_count();
+        std::cout << "Copy Constructor called" << std::endl;
+    }
+
+    Variable<T>& operator=(Variable<T>& other) {
+        if (this != &other) {
+            _variable = other._variable;
+            if (_variable)
+                _variable->increment_ref_count();
+        }
+        std::cout << "Copy Assignment Operator called" << std::endl;
+    }
 
     // Variable(T value, bool requires_grad, bool is_leaf, std::function<std::vector<T>(const T&)> backward_fn) {
     //     _variable = std::make_shared<VariableImpl<T>>(value, requires_grad, is_leaf, backward_fn);
     // }
 
-    ~Variable() {
-        std::cout << "RIP: " <<  _variable->value() << " @ " << _variable.get() << std::endl;
-    }
+    // ~Variable() {
+    //     std::cout << "RIP Variable: " <<  _variable->value() << " @ " << _variable.get() << std::endl;
+    // }
 
     T value() const { return _variable->value(); }
     std::optional<T> grad() const { return _variable->grad(); }
@@ -121,14 +137,14 @@ public:
         _variable->backward(prev_grad, retain_graph);
     }
 
-    const std::vector<std::weak_ptr<VariableImpl<T>>>& parents() const {
+    const std::vector<std::shared_ptr<VariableImpl<T>>>& parents() const {
         return _variable->parents();
     }
 
     Variable<T> exp() const {
         Variable<T> out(GradRegistry::exp_fwd(this->value()), this->requires_grad());
         out._variable->set_backward_fn([this](const T& prev_grad) {
-            return GradRegistry::exp_bwd(*this, prev_grad);
+            return GradRegistry::exp_bwd(this->_variable.get(), prev_grad);
         });
         out._variable->add_parent(_variable);
         return out;
@@ -137,7 +153,7 @@ public:
     Variable<T> log() const {
         Variable<T> out(GradRegistry::log_fwd(this->value()), this->requires_grad());
         out._variable->set_backward_fn([this](const T& prev_grad) {
-            return GradRegistry::log_bwd(*this, prev_grad);
+            return GradRegistry::log_bwd(this->_variable.get(), prev_grad);
         });
         out._variable->add_parent(_variable);
         return out;
@@ -146,7 +162,7 @@ public:
     Variable<T> sin() const {
         Variable<T> out(GradRegistry::sin_fwd(this->value()), this->requires_grad());
         out._variable->set_backward_fn([this](const T& prev_grad) {
-            return GradRegistry::sin_bwd(*this, prev_grad);
+            return GradRegistry::sin_bwd(this->_variable.get(), prev_grad);
         });
         out._variable->add_parent(_variable);
         return out;
@@ -155,7 +171,7 @@ public:
     Variable<T> cos() const {
         Variable<T> out(GradRegistry::cos_fwd(this->value()), this->requires_grad());
         out._variable->set_backward_fn([this](const T& prev_grad) {
-            return GradRegistry::cos_bwd(*this, prev_grad);
+            return GradRegistry::cos_bwd(this->_variable.get(), prev_grad);
         });
         out._variable->add_parent(_variable);
         return out;
@@ -199,9 +215,9 @@ private:
 
 template<class T>
 Variable<T> operator+(const Variable<T>& lhs, const Variable<T>& rhs) {
-    Variable<T> out(GradRegistry::add_fwd(lhs.value(), rhs.value()), lhs.requires_grad() || rhs.requires_grad());
-    out._variable->set_backward_fn([lhs, rhs](const T& prev_grad) {
-        return GradRegistry::add_bwd(lhs, rhs, prev_grad);
+    Variable<T> out(GradRegistry::add_fwd(lhs.value(), rhs.value()), lhs.requires_grad() || rhs.requires_grad(), false);
+    out._variable->set_backward_fn([lhs_var = lhs._variable, rhs_var = rhs._variable](const T& prev_grad) {
+        return GradRegistry::add_bwd(*lhs_var, *rhs_var, prev_grad);
     });
     out._variable->add_parent(lhs._variable);
     out._variable->add_parent(rhs._variable);
@@ -222,9 +238,9 @@ Variable<T> operator+(const T& lhs, const Variable<T>& rhs) {
 
 template<class T>
 Variable<T> operator-(const Variable<T>& lhs, const Variable<T>& rhs) {
-    Variable<T> out(GradRegistry::sub_fwd(lhs.value(), rhs.value()), lhs.requires_grad() || rhs.requires_grad());
-    out._variable->set_backward_fn([lhs, rhs](const T& prev_grad) {
-        return GradRegistry::sub_bwd(lhs, rhs, prev_grad);
+    Variable<T> out(GradRegistry::sub_fwd(lhs.value(), rhs.value()), lhs.requires_grad() || rhs.requires_grad(), false);
+    out._variable->set_backward_fn([lhs_var = lhs._variable, rhs_var = rhs._variable](const T& prev_grad) {
+        return GradRegistry::sub_bwd(*lhs_var, *rhs_var, prev_grad);
     });
     out._variable->add_parent(lhs._variable);
     out._variable->add_parent(rhs._variable);
@@ -244,9 +260,9 @@ Variable<T> operator-(const T& lhs, const Variable<T>& rhs) {
 
 template<class T>
 Variable<T> operator*(const Variable<T>& lhs, const Variable<T>& rhs) {
-    Variable<T> out(GradRegistry::mul_fwd(lhs.value(), rhs.value()), lhs.requires_grad() || rhs.requires_grad());
-    out._variable->set_backward_fn([lhs, rhs](const T& prev_grad) {
-        return GradRegistry::mul_bwd(lhs, rhs, prev_grad);
+    Variable<T> out(GradRegistry::mul_fwd(lhs.value(), rhs.value()), lhs.requires_grad() || rhs.requires_grad(), false);
+    out._variable->set_backward_fn([lhs_var = lhs._variable, rhs_var = rhs._variable](const T& prev_grad) {
+        return GradRegistry::mul_bwd(*lhs_var, *rhs_var, prev_grad);
     });
     out._variable->add_parent(lhs._variable);
     out._variable->add_parent(rhs._variable);
@@ -265,9 +281,9 @@ Variable<T> operator*(const T& lhs, const Variable<T>& rhs) {
 
 template<class T>
 Variable<T> operator/(const Variable<T>& lhs, const Variable<T>& rhs) {
-    Variable<T> out(GradRegistry::div_fwd(lhs.value(), rhs.value()), lhs.requires_grad() || rhs.requires_grad());
-    out._variable->set_backward_fn([lhs, rhs](const T& prev_grad) {
-        return GradRegistry::div_bwd(lhs, rhs, prev_grad);
+    Variable<T> out(GradRegistry::div_fwd(lhs.value(), rhs.value()), lhs.requires_grad() || rhs.requires_grad(), false);
+    out._variable->set_backward_fn([lhs_var = lhs._variable, rhs_var = rhs._variable](const T& prev_grad) {
+        return GradRegistry::div_bwd(*lhs_var, *rhs_var, prev_grad);
     });
     out._variable->add_parent(lhs._variable);
     out._variable->add_parent(rhs._variable);
@@ -294,10 +310,13 @@ std::ostream& operator<<(std::ostream& os, Variable<T>& var) {
     os << ", requires_grad=" << var.requires_grad() << ")";
     if (var.requires_grad() & !var.parents().empty()) {
         os  << std::endl << "  Parents: [";
-        for (const auto& weak_parent : var.parents()) {
-            if (const auto parent = weak_parent.lock())
-                // reduce `use_count` by one, since the local variable `parent` is one of them 
-                os << parent->value()  << " (" << parent.get() << " | " << parent.use_count() - 1 << "), ";
+        // for (const auto& weak_parent : var.parents()) {
+        //     if (const auto parent = weak_parent.lock())
+        //         // reduce `use_count` by one, since the local variable `parent` is one of them 
+        //         os << parent->value()  << " (" << parent.get() << " | " << parent.use_count() - 1 << "), ";
+        // }
+        for (const auto& parent : var.parents()) {
+            os << parent->value()  << " (" << parent.get() << " | " << parent.use_count() << "), ";
         }
         os << "]";
     }

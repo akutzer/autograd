@@ -14,10 +14,6 @@ public:
 
     VariableImpl(T value, bool requires_grad = false, bool is_leaf = false)
         : _value(value), _grad(T(0)), _requires_grad(requires_grad), _is_leaf(is_leaf) {}
-    
-    // ~VariableImpl() {
-    //     std::cout << "RIP VariableImpl: " <<  value() << " @ " << this << std::endl;
-    // }
 
     T value() const { return _value; }
     std::optional<T> grad() const { return _grad; }
@@ -47,7 +43,7 @@ public:
             return;
 
         // Accumulate incoming gradient
-        if (true | is_leaf())
+        if (true || is_leaf())
             add_grad(prev_grad);
 
         // Calculate gradients of inputs using registered backward functions
@@ -62,7 +58,7 @@ public:
 
             decrement_ref_count();
 
-            if (!retain_graph & can_clear_parents())
+            if (!retain_graph && can_clear_parents())
                 _parents.clear();
         }
     }

@@ -9,9 +9,18 @@
 #include "VariableImpl.hpp"
 
 
-template<class T> class Variable;
-
 namespace GradRegistry {
+
+    template<class T>
+    T neg_fwd(const T val) {
+        return -val;
+    }
+
+    template<class T>
+    std::vector<T> neg_bwd(const VariableImpl<T>& val, const T& prev_grad) {
+        return {-prev_grad};
+    }
+
     template<class T>
     T add_fwd(const T lhs, const T rhs) {
         return lhs + rhs;
@@ -99,34 +108,34 @@ namespace GradRegistry {
 template<class T>
 class Variable {
 public:
-    // Variable() : _variable(std::make_shared<VariableImpl<T>>()) {} 
-
+    // user created Variables are by default `leaf`
     Variable(T value, bool requires_grad = false, bool is_leaf = true)
         : _variable(std::make_shared<VariableImpl<T>>(value, requires_grad, is_leaf)) {}
     
-    Variable(Variable<T>& other) {
-        _variable = other._variable;
+    // copy & copy-assign constructor which increment the reference count
+    // of th underlying VariableImpl
+    Variable(const Variable<T>& other) : _variable(other._variable) {
         if (_variable)
             _variable->increment_ref_count();
-        std::cout << "Copy Constructor called" << std::endl;
     }
 
-    Variable<T>& operator=(Variable<T>& other) {
+    Variable<T>& operator=(const Variable<T>& other) {
         if (this != &other) {
             _variable = other._variable;
             if (_variable)
                 _variable->increment_ref_count();
         }
-        std::cout << "Copy Assignment Operator called" << std::endl;
+        return *this;
     }
 
-    // Variable(T value, bool requires_grad, bool is_leaf, std::function<std::vector<T>(const T&)> backward_fn) {
-    //     _variable = std::make_shared<VariableImpl<T>>(value, requires_grad, is_leaf, backward_fn);
-    // }
+    Variable(Variable<T>&& other) noexcept : _variable(std::move(other._variable)) {}
 
-    // ~Variable() {
-    //     std::cout << "RIP Variable: " <<  _variable->value() << " @ " << _variable.get() << std::endl;
-    // }
+    Variable<T>& operator=(Variable<T>&& other) noexcept {
+        if (this != &other) {
+            _variable = std::move(other._variable);
+        }
+        return *this;
+    }
 
     T value() const { return _variable->value(); }
     std::optional<T> grad() const { return _variable->grad(); }
@@ -141,10 +150,18 @@ public:
         return _variable->parents();
     }
 
+
+    ///////////////////////////////////////////////////////////////////////////
+    ///                          UNARY OPERATIONS                           ///
+    ///////////////////////////////////////////////////////////////////////////
+
+    template<class A>
+    friend Variable<A> operator-(const Variable<A>& var);
+
     Variable<T> exp() const {
         Variable<T> out(GradRegistry::exp_fwd(this->value()), this->requires_grad());
         out._variable->set_backward_fn([this](const T& prev_grad) {
-            return GradRegistry::exp_bwd(this->_variable.get(), prev_grad);
+            return GradRegistry::exp_bwd(*this->_variable, prev_grad);
         });
         out._variable->add_parent(_variable);
         return out;
@@ -153,7 +170,7 @@ public:
     Variable<T> log() const {
         Variable<T> out(GradRegistry::log_fwd(this->value()), this->requires_grad());
         out._variable->set_backward_fn([this](const T& prev_grad) {
-            return GradRegistry::log_bwd(this->_variable.get(), prev_grad);
+            return GradRegistry::log_bwd(*this->_variable, prev_grad);
         });
         out._variable->add_parent(_variable);
         return out;
@@ -162,7 +179,7 @@ public:
     Variable<T> sin() const {
         Variable<T> out(GradRegistry::sin_fwd(this->value()), this->requires_grad());
         out._variable->set_backward_fn([this](const T& prev_grad) {
-            return GradRegistry::sin_bwd(this->_variable.get(), prev_grad);
+            return GradRegistry::sin_bwd(*this->_variable, prev_grad);
         });
         out._variable->add_parent(_variable);
         return out;
@@ -171,11 +188,16 @@ public:
     Variable<T> cos() const {
         Variable<T> out(GradRegistry::cos_fwd(this->value()), this->requires_grad());
         out._variable->set_backward_fn([this](const T& prev_grad) {
-            return GradRegistry::cos_bwd(this->_variable.get(), prev_grad);
+            return GradRegistry::cos_bwd(*this->_variable, prev_grad);
         });
         out._variable->add_parent(_variable);
         return out;
     }
+
+
+    ///////////////////////////////////////////////////////////////////////////
+    ///                          BINARY OPERATIONS                          ///
+    ///////////////////////////////////////////////////////////////////////////
 
     //  Define operations for all combinations (Variable op Variable, Variable op Generic, Generic op Variable)
     #define DEFINE_BINARY_OPERATORS(op) \
@@ -199,18 +221,25 @@ public:
 
     #undef DEFINE_BINARY_OPERATORS
 
+
     template<class A>
     friend std::ostream& operator<<(std::ostream& os, Variable<A>& var);
 
-    template<class A>
-    friend Variable<A> operator+(const Variable<A>& lhs, const Variable<A>& rhs);
-
-    std::shared_ptr<VariableImpl<T>> _variable; 
-
 private:
-    // std::shared_ptr<VariableImpl<T>> _variable;
+    std::shared_ptr<VariableImpl<T>> _variable;
 
 };
+
+
+template<class T>
+Variable<T> operator-(const Variable<T>& var) {
+    Variable<T> out(GradRegistry::neg_fwd(var.value()), var.requires_grad(), false);
+    out._variable->set_backward_fn([var = var._variable](const T& prev_grad) {
+        return GradRegistry::neg_bwd(*var, prev_grad);
+    });
+    out._variable->add_parent(var._variable);
+    return out;
+}
 
 
 template<class T>
@@ -279,6 +308,7 @@ Variable<T> operator*(const T& lhs, const Variable<T>& rhs) {
     return Variable<T>(lhs, false, false) * rhs;
 }
 
+
 template<class T>
 Variable<T> operator/(const Variable<T>& lhs, const Variable<T>& rhs) {
     Variable<T> out(GradRegistry::div_fwd(lhs.value(), rhs.value()), lhs.requires_grad() || rhs.requires_grad(), false);
@@ -304,17 +334,16 @@ Variable<T> operator/(const T& lhs, const Variable<T>& rhs) {
 template<class T>
 std::ostream& operator<<(std::ostream& os, Variable<T>& var) {
     os << "Variable(" << var.value();
-    if (var.grad()) {
+    if (var.grad())
         os << ", grad=" << var.grad().value();
-    }
-    os << ", requires_grad=" << var.requires_grad() << ")";
-    if (var.requires_grad() & !var.parents().empty()) {
-        os  << std::endl << "  Parents: [";
-        // for (const auto& weak_parent : var.parents()) {
-        //     if (const auto parent = weak_parent.lock())
-        //         // reduce `use_count` by one, since the local variable `parent` is one of them 
-        //         os << parent->value()  << " (" << parent.get() << " | " << parent.use_count() - 1 << "), ";
-        // }
+
+    if (var.requires_grad())
+        os << ", requires_grad=" << var.requires_grad();
+    
+    os << ")";
+
+    if (var.requires_grad() && !var.parents().empty()) {
+        os  << std::endl << " └─ Parents: [";
         for (const auto& parent : var.parents()) {
             os << parent->value()  << " (" << parent.get() << " | " << parent.use_count() << "), ";
         }

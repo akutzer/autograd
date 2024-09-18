@@ -1,5 +1,4 @@
 #pragma once
-
 #include <iostream>
 #include <vector>
 #include <memory>
@@ -130,20 +129,22 @@ class Variable {
 public:
     // user created Variables are by default `leaf`
     Variable(T value, bool requires_grad = false, bool is_leaf = true)
-        : _variable(std::make_shared<VariableImpl<T>>(value, requires_grad, is_leaf)) {}
+        : _variable(std::make_shared<VariableImpl<T>>(value, requires_grad, is_leaf)) {
+            // _variable->increment_ref_count();
+        }
     
     // copy & copy-assign constructor which increments the reference count
     // of the underlying VariableImpl
     Variable(const Variable<T>& other) : _variable(other._variable) {
-        if (_variable)
-            _variable->increment_ref_count();
+        // if (_variable)
+            // _variable->increment_ref_count();
     }
 
     Variable<T>& operator=(const Variable<T>& other) {
         if (this != &other) {
             _variable = other._variable;
-            if (_variable)
-                _variable->increment_ref_count();
+            // if (_variable)
+                // _variable->increment_ref_count();
         }
         return *this;
     }
@@ -163,6 +164,8 @@ public:
     bool is_leaf() const { return _variable->is_leaf(); }
 
     void backward(T prev_grad = 1, bool retain_graph = false) {
+        if (!retain_graph)
+            _variable->increment_ref_count();
         _variable->backward(prev_grad, retain_graph);
     }
 
@@ -171,10 +174,10 @@ public:
     }
 
     template<typename A, typename Op>
-    friend Variable<A> binary_operation(const Variable<A>& lhs, const Variable<A>& rhs, const Op op);
+    friend Variable<A> binary_operation(const Variable<A>& lhs, const Variable<A>& rhs, const Op& op);
 
     template<typename A, typename Op>
-    friend Variable<A> unary_operation(const Variable<A>& var, const Op op);
+    friend Variable<A> unary_operation(const Variable<A>& var, const Op& op);
 
 
     ///////////////////////////////////////////////////////////////////////////
@@ -237,20 +240,22 @@ public:
     template<typename A>
     friend std::ostream& operator<<(std::ostream& os, Variable<A>& var);
 
-private:
     std::shared_ptr<VariableImpl<T>> _variable;
+
+private:
+    // std::shared_ptr<VariableImpl<T>> _variable;
 
 };
 
 
 template<typename T, typename Op>
-Variable<T> binary_operation(const Variable<T>& lhs, const Variable<T>& rhs, const Op op) {
+Variable<T> binary_operation(const Variable<T>& lhs, const Variable<T>& rhs, const Op& op) {
     Variable<T> out(op(lhs.value(), rhs.value()), lhs.requires_grad() || rhs.requires_grad(), false);
     // Variables created by operations are non-leaf
 
     if (out.requires_grad()) {
-        out._variable->set_backward_fn([lhs_var = lhs._variable, rhs_var = rhs._variable, op](const T& prev_grad) {
-            return op.backward(*lhs_var, *rhs_var, prev_grad);
+        out._variable->set_backward_fn([lhs_var = std::move(lhs._variable), rhs_var = std::move(rhs._variable), &op](const T& prev_grad) {
+            return std::move(op.backward(*lhs_var, *rhs_var, prev_grad));
         });
 
         out._variable->add_parent(lhs._variable);
@@ -261,13 +266,13 @@ Variable<T> binary_operation(const Variable<T>& lhs, const Variable<T>& rhs, con
 }
 
 template<typename T, typename Op>
-Variable<T> unary_operation(const Variable<T>& var, const Op op) {
+Variable<T> unary_operation(const Variable<T>& var, const Op& op) {
     Variable<T> out(op(var.value()), var.requires_grad(), false);
     // Variables created by operations are non-leaf
 
     if (out.requires_grad()) {
-        out._variable->set_backward_fn([var = var._variable, op](const T& prev_grad) {
-            return op.backward(*var, prev_grad);
+        out._variable->set_backward_fn([var = std::move(var._variable), &op](const T& prev_grad) {
+            return std::move(op.backward(*var, prev_grad));
         });
 
         out._variable->add_parent(var._variable);
@@ -357,7 +362,7 @@ std::ostream& operator<<(std::ostream& os, Variable<T>& var) {
     if (var.requires_grad())
         os << ", requires_grad=" << var.requires_grad();
     
-    os << ")";
+    os << ")" << " use_count: " << var._variable.use_count();
 
     if (var.requires_grad() && !var.parents().empty()) {
         os  << std::endl << " └─ Parents: [";

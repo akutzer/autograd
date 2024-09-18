@@ -1,5 +1,4 @@
 #pragma once
-
 #include <vector>
 #include <memory>
 #include <functional>
@@ -20,10 +19,10 @@ public:
     bool requires_grad() const { return _requires_grad; }
     bool is_leaf() const { return _is_leaf; }
 
-    void increment_ref_count() { _ref_count++; }
-    void decrement_ref_count() { _ref_count--; }
+    void increment_ref_count() { ++_ref_count; }
+    void decrement_ref_count() { --_ref_count; }
     bool can_clear_parents() const { return _ref_count == 0; }
-    int ref_count() const { return ref_count; }
+    int ref_count() const { return _ref_count; }
 
     void set_grad(T grad) { _grad = grad; }
     void zero_grad() { _grad = T(0); }
@@ -56,7 +55,8 @@ public:
                 _parents[i]->backward(out_grads[i], retain_graph);
             }
 
-            decrement_ref_count();
+            if (!retain_graph)
+                decrement_ref_count();
 
             if (!retain_graph && can_clear_parents())
                 _parents.clear();
@@ -72,7 +72,7 @@ private:
     std::optional<T> _grad;
     bool _requires_grad;
     bool _is_leaf; // only leaf Variables will have their grad populated during a call to backward()
-    int _ref_count;
+    int _ref_count = 0; // counts the number of time this is a parent of other VariableImpl
     std::vector<std::shared_ptr<VariableImpl<T>>> _parents;
     std::function<std::vector<T>(const T&)> _backward_fn;
 };

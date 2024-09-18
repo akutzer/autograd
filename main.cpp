@@ -1,8 +1,6 @@
 #include <iostream>
-// #include "variable.hpp"
 #include "Variable.hpp"
-// #include "variable.hpp"
-#include "dual.hpp"
+#include "Dual.hpp"
 
 
 
@@ -19,25 +17,26 @@ int main(int argc, char const *argv[])
 
 
 
-    // Variable<float> v1(2, true), v2(5, true);
+    Variable<float> v1(2, true), v2(5, true);
 
-    // auto vv1 = v1.log();
-    // auto vv2 = v1 * v2;
-    // auto vv3 = v2.sin();
-    // auto vv4 = vv1 + vv2;
-    // auto vv5 = vv4 - vv3;
+    auto vv1 = v1.log();
+    auto vv2 = v1 * v2;
+    auto vv3 = v2.sin();
+    auto vv4 = vv1 + vv2;
+    auto vv5 = vv4 - vv3;
     
-    // vv5.backward(1, true);
-    // std::cout << vv5 << std::endl;
-    // std::cout << vv4 << std::endl;
-    // std::cout << vv3 << std::endl;
-    // std::cout << vv2 << std::endl;
-    // std::cout << vv1 << std::endl;
-    // std::cout << v1 << std::endl;
-    // std::cout << v2 << std::endl;
+    vv5.backward(1, false);
+    std::cout << vv5 << std::endl;
+    std::cout << vv4 << std::endl;
+    std::cout << vv3 << std::endl;
+    std::cout << vv2 << std::endl;
+    std::cout << vv1 << std::endl;
+    std::cout << v1 << std::endl;
+    std::cout << v2 << std::endl;
 
 
     // auto bwd_out = v1.log() + v1 * v2 - v2.sin();
+    // // auto bwd_out = -v1;
     // bwd_out.backward(1, true);
 
     // std::cout << bwd_out << std::endl;
@@ -60,24 +59,29 @@ int main(int argc, char const *argv[])
 
 
 
-    Variable<float> a(2, true);
-    auto b = a + 1.f;
+    // Variable<float> a(2, true);
+    // // auto b = -a;
+    // // b.backward();
+    // // std::cout << b << std::endl;
+    // // std::cout << a << std::endl;
+    
+    // auto b = a + 1.f;
 
-    // Variable<float> x(3, false);
+    // // Variable<float> x(3, false);
     
 
-    auto c = b * 3.f;
-    auto d = b + a;
+    // auto c = b * 3.f;
+    // auto d = b + a;
 
-    auto e = c * d;
+    // auto e = c * d;
 
-    e.backward(1, false);
+    // e.backward(1, true);
     
-    std::cout << e << std::endl;
-    std::cout << d << std::endl;
-    std::cout << c << std::endl;
-    std::cout << b << std::endl;
-    std::cout << a << std::endl;
+    // std::cout << e << std::endl;
+    // std::cout << d << std::endl;
+    // std::cout << c << std::endl;
+    // std::cout << b << std::endl;
+    // std::cout << a << std::endl;
 
 
     // Dual<float> a(2, 1);

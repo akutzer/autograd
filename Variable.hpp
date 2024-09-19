@@ -130,26 +130,23 @@ public:
     // user created Variables are by default `leaf`
     Variable(T value, bool requires_grad = false, bool is_leaf = true)
         : _variable(std::make_shared<VariableImpl<T>>(value, requires_grad, is_leaf)) {
-            // _variable->increment_ref_count();
+            // _variable->increment_num_children();
         }
     
-    // copy & copy-assign constructor which increments the reference count
-    // of the underlying VariableImpl
-    Variable(const Variable<T>& other) : _variable(other._variable) {
-        // if (_variable)
-            // _variable->increment_ref_count();
-    }
+    // copy & copy-assign constructors perform a shallow copy, with the new
+    // this referencing the same VariableImpl as other (i.e. copy returns
+    // a view of the underlying VariabelImpl)
+    Variable(const Variable<T>& other) : _variable(other._variable) {}
 
     Variable<T>& operator=(const Variable<T>& other) {
         if (this != &other) {
             _variable = other._variable;
-            // if (_variable)
-                // _variable->increment_ref_count();
         }
         return *this;
     }
 
-    Variable(Variable<T>&& other) noexcept : _variable(std::move(other._variable)) {}
+    Variable(Variable<T>&& other) noexcept : _variable(std::move(other._variable)) {
+    }
 
     Variable<T>& operator=(Variable<T>&& other) noexcept {
         if (this != &other) {
@@ -160,12 +157,12 @@ public:
 
     T value() const { return _variable->value(); }
     std::optional<T> grad() const { return _variable->grad(); }
+    void zero_grad() { _variable->zero_grad(); }
     bool requires_grad() const { return _variable->requires_grad(); }
+    bool set_requires_grad(bool v = true) { return _variable->set_requires_grad(v); }
     bool is_leaf() const { return _variable->is_leaf(); }
 
     void backward(T prev_grad = 1, bool retain_graph = false) {
-        if (!retain_graph)
-            _variable->increment_ref_count();
         _variable->backward(prev_grad, retain_graph);
     }
 
@@ -238,7 +235,7 @@ public:
 
 
     template<typename A>
-    friend std::ostream& operator<<(std::ostream& os, Variable<A>& var);
+    friend std::ostream& operator<<(std::ostream& os, const Variable<A>& var);
 
     std::shared_ptr<VariableImpl<T>> _variable;
 
@@ -254,8 +251,19 @@ Variable<T> binary_operation(const Variable<T>& lhs, const Variable<T>& rhs, con
     // Variables created by operations are non-leaf
 
     if (out.requires_grad()) {
-        out._variable->set_backward_fn([lhs_var = std::move(lhs._variable), rhs_var = std::move(rhs._variable), &op](const T& prev_grad) {
-            return std::move(op.backward(*lhs_var, *rhs_var, prev_grad));
+        // the only way lhs_wp or rhs_wp are invalid is when this->_variable
+        // has deleted its parents, but this is only done in this->_variable->backward()
+        // when the reference count is 0 and then _backward_fn is also set to
+        // nullptr, thus _backward_fn can no longer be called in
+        // this->_variable->backward()
+        out._variable->set_backward_fn([lhs_wp = std::weak_ptr<VariableImpl<T>>(lhs._variable),
+                                        rhs_wp = std::weak_ptr<VariableImpl<T>>(rhs._variable), &op](const T& prev_grad) {
+            auto lhs_var = lhs_wp.lock();
+            auto rhs_var = rhs_wp.lock();
+            if (lhs_var && rhs_var) {
+                return op.backward(*lhs_var, *rhs_var, prev_grad);
+            }
+            return std::vector<T>{};
         });
 
         out._variable->add_parent(lhs._variable);
@@ -271,8 +279,11 @@ Variable<T> unary_operation(const Variable<T>& var, const Op& op) {
     // Variables created by operations are non-leaf
 
     if (out.requires_grad()) {
-        out._variable->set_backward_fn([var = std::move(var._variable), &op](const T& prev_grad) {
-            return std::move(op.backward(*var, prev_grad));
+        out._variable->set_backward_fn([var_wp = std::weak_ptr<VariableImpl<T>>(var._variable), &op](const T& prev_grad) {
+            auto var = var_wp.lock();
+            if (var)
+                return op.backward(*var, prev_grad);
+            return std::vector<T>{};
         });
 
         out._variable->add_parent(var._variable);
@@ -354,7 +365,7 @@ Variable<T> operator/(const T& lhs, const Variable<T>& rhs) {
 
 
 template<typename T>
-std::ostream& operator<<(std::ostream& os, Variable<T>& var) {
+std::ostream& operator<<(std::ostream& os, const Variable<T>& var) {
     os << "Variable(" << var.value();
     if (var.grad())
         os << ", grad=" << var.grad().value();

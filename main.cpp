@@ -1,97 +1,58 @@
 #include <iostream>
+#include <iomanip>
 #include "Variable.hpp"
 #include "Dual.hpp"
 
 
+template<typename T>
+T f(const T& x, const T& y) {
+    auto tmp = (x.log() + (-x) * y - y.sin());
+    auto tmp2 = tmp;
+    for (int i = 1; i < 5; ++i)
+        tmp = tmp * static_cast<T>(i);
+    return tmp / ((static_cast<T>(2) * x).cos() + tmp2).exp();
+}
 
 int main(int argc, char const *argv[])
 {
+    std::cout << std::setprecision(10);
 
-    // Dual<float> x1(2, 1), x2(5, 0);
+    using dtype = _Float32;
+
+    Dual<dtype> x1(2, 1), x2(5, 0);
+    auto out_dual = f(x1, x2);
+    std::cout << out_dual << std::endl;
+
+    x1 = Dual<dtype>(2, 0);
+    x2 = Dual<dtype>(5, 1);
+    out_dual = f(x1, x2);
+    std::cout << out_dual << std::endl;
+
+    Variable<dtype> x(2, true), y(5, true);
+    auto out = f(x, y);
+    out.backward(1, false);
+    std::cout << out << std::endl;
+    std::cout << x << std::endl;
+    std::cout << y << std::endl;
+
+
+
+    // Dual<dtype> x1(2, 1), x2(5, 0);
     // auto fwd_out = x1.log() + x1 * x2 - x2.sin();
     // std::cout << fwd_out << std::endl;
 
-    // Dual<float> xx1(2, 0), xx2(5, 1);
-    // auto fwd_out2 = xx1.log() + xx1 * xx2 - xx2.sin();
-    // std::cout << fwd_out2 << std::endl;
+    // x1 = Dual<dtype>(2, 0);
+    // x2 = Dual<dtype>(5, 1);
+    // fwd_out = x1.log() + x1 * x2 - x2.sin();
+    // std::cout << fwd_out << std::endl;
 
-
-
-    Variable<float> v1(2, true), v2(5, true);
-
-    auto vv1 = v1.log();
-    auto vv2 = v1 * v2;
-    auto vv3 = v2.sin();
-    auto vv4 = vv1 + vv2;
-    auto vv5 = vv4 - vv3;
-    
-    vv5.backward(1, false);
-    std::cout << vv5 << std::endl;
-    std::cout << vv4 << std::endl;
-    std::cout << vv3 << std::endl;
-    std::cout << vv2 << std::endl;
-    std::cout << vv1 << std::endl;
-    std::cout << v1 << std::endl;
-    std::cout << v2 << std::endl;
-
-
+    // Variable<dtype> v1(2, true), v2(5, true);
     // auto bwd_out = v1.log() + v1 * v2 - v2.sin();
-    // // auto bwd_out = -v1;
-    // bwd_out.backward(1, true);
-
+    // // auto bwd_out = (v1.log() + (-v1) * v2 - v2.sin()) / ((2.f * v1).cos() + 1.f).exp();
+    // bwd_out.backward(1, false);
     // std::cout << bwd_out << std::endl;
     // std::cout << v1 << std::endl;
     // std::cout << v2 << std::endl;
-
-        // Variable<float> a(2, true), b(5, true);
-    // Variable<float> c = a * b;
-    // Variable<float> d = c + 1.f;
-    // std::cout << "A" << std::endl;
-    // d.backward(1, true);
-    // std::cout << d << std::endl;
-    // // std::cout << c << std::endl;
-    // // std::cout << c.is_leaf() << std::endl;
-    // std::cout << a << std::endl;
-    // std::cout << b << std::endl;
-
-
-
-
-
-
-    // Variable<float> a(2, true);
-    // // auto b = -a;
-    // // b.backward();
-    // // std::cout << b << std::endl;
-    // // std::cout << a << std::endl;
-    
-    // auto b = a + 1.f;
-
-    // // Variable<float> x(3, false);
-    
-
-    // auto c = b * 3.f;
-    // auto d = b + a;
-
-    // auto e = c * d;
-
-    // e.backward(1, true);
-    
-    // std::cout << e << std::endl;
-    // std::cout << d << std::endl;
-    // std::cout << c << std::endl;
-    // std::cout << b << std::endl;
-    // std::cout << a << std::endl;
-
-
-    // Dual<float> a(2, 1);
-    // auto b = a + 1.f;
-    // auto c = b * 3.f;
-    // auto d = b + a;
-    // auto e = c * d;
-    // std::cout << e << std::endl;
-
-
 
     return 0;
 }

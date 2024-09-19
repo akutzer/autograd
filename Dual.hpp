@@ -1,7 +1,8 @@
 #pragma once
 #include <iostream>
 #include <type_traits>
-#include<cmath>
+#include <cmath>
+
 
 
 template<typename T>
@@ -47,6 +48,9 @@ class Dual {
             return Dual<T>(std::cos(_primal), -std::sin(_primal) * _tangent);
         }
 
+        template<typename A>
+        friend Dual<A> operator-(const Dual<A>& val);
+
         template<typename U>
         friend std::ostream& operator<<(std::ostream& ios, const Dual<U>& dual);
 
@@ -84,8 +88,18 @@ class Dual {
 
 template<typename T>
 std::ostream& operator<<(std::ostream& os, const Dual<T>& dual) {
+    // os << "Dual(" << dual._primal << ", " << dual._tangent << ")";
     os << "Dual(" << dual._primal << ", " << dual._tangent << ")";
+
+
+    // std::format("{}", std::numbers::pi_v<double>)
     return os;
+}
+
+
+template<typename A>
+Dual<A> operator-(const Dual<A>& val) {
+    return Dual<A>(-val._primal, -val._tangent);
 }
 
 
@@ -145,9 +159,9 @@ template<typename A, class B>
 Dual<typename std::common_type<A, B>::type> operator/(const Dual<A>& lhs, const Dual<B>& rhs) {
     // Dual(a / b, (da/dx * b - a * db/dx) / b²)
     // Dual(a * 1/b, (da/dx * 1/b - a * 1/b² * db/dx))
-    // using X = typename std::common_type<A, B>::type;
-    // return Dual<X>(lhs._primal / rhs._primal, (lhs._tangent * rhs._primal - lhs._primal * rhs._tangent) / (rhs._primal * rhs._primal));
-    return lhs * rhs.reciprocal();
+    using X = typename std::common_type<A, B>::type;
+    return Dual<X>(lhs._primal / rhs._primal, (lhs._tangent * rhs._primal - lhs._primal * rhs._tangent) / (rhs._primal * rhs._primal));
+    // return lhs * rhs.reciprocal();
 }
 
 template<typename A, class B>

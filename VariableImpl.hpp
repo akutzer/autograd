@@ -6,6 +6,8 @@
 #include <optional>
 
 
+template<typename T> class Variable;
+
 template<typename T>
 class VariableImpl : public std::enable_shared_from_this<VariableImpl<T>> {
 public:
@@ -14,12 +16,20 @@ public:
     VariableImpl(T value, bool requires_grad = false, bool is_leaf = false)
         : _value(value), _grad(), _requires_grad(requires_grad), _is_leaf(is_leaf) {}
 
+    // VariableImpl(T value, bool requires_grad = false, bool is_leaf = false)
+    //     : _value(value), _grad(), _requires_grad(requires_grad), _is_leaf(is_leaf) {}
+
     T value() const { return _value; }
-    std::optional<T> grad() const { return _grad; }
+    std::optional<Variable<T>> grad() const { return _grad; }
     bool requires_grad() const { return _requires_grad; }
-    bool set_requires_grad(const bool v = true) {
+    bool set_requires_grad(const bool requires_grad = true) {
         _is_leaf = true;
-        return _requires_grad = v; 
+        if (!requires_grad) {
+            _parents.clear();
+            _children.clear();
+            _backward_fn = nullptr;
+        }
+        return _requires_grad = requires_grad;
     }
     bool is_leaf() const { return _is_leaf; }
 
@@ -34,9 +44,19 @@ public:
         return false;
     }        
 
-    void set_grad(const T& grad) { _grad = grad; }
-    void zero_grad() { _grad = T(0); }
-    void add_grad(const T& grad) { _grad = _grad ? _grad.value() + grad : grad; }
+    // void set_grad(const T& grad) { _grad = grad; }
+    // void set_grad(const std::shared_ptr<VariableImpl<T>>& grad) { _grad = grad; }
+    void set_grad(const Variable<T>& grad) { _grad = grad; }
+    void zero_grad() { _grad = Variable<T>(0, false, false); }
+    // void add_grad(const T& grad) { _grad = _grad.has_value() ? _grad.value() + grad : grad; }
+    // void add_grad(const std::shared_ptr<VariableImpl<T>>& grad) { 
+    //     if (_grad.value())
+    //         _grad.value()->_value = _grad.value()->_value + grad->value();
+    //     else
+    //         _grad = grad;
+    // }
+    void add_grad(const Variable<T>& grad) { _grad = _grad.has_value() ? _grad.value() + grad : grad; }
+    
 
     const std::vector<std::shared_ptr<VariableImpl<T>>>& parents() const { return _parents; }
     const std::vector<std::weak_ptr<VariableImpl<T>>>& children() const { return _children; }
@@ -86,8 +106,8 @@ public:
     // the backward function to release memory resources. Only leaf nodes retain 
     // their gradients, while non-leaf nodes reset their gradients to avoid 
     // incorrect accumulation in future calls.
-
-
+    //
+    //
     ///////////////////////////////////////////////////////////////////////////
     ///                Example for the backward() traversal                 ///
     ///////////////////////////////////////////////////////////////////////////
@@ -155,7 +175,7 @@ public:
     //     - Deletes the reference to C and returns the backward() call to Variable(D)
     //       finishing the backward process.
     //
-    void backward(const T& prev_grad, bool retain_graph, const std::shared_ptr<VariableImpl<T>>& child = nullptr, const std::shared_ptr<VariableImpl<T>>& root = nullptr) {
+    void backward(const Variable<T>& prev_grad, bool retain_graph, const std::shared_ptr<VariableImpl<T>>& child = nullptr, const std::shared_ptr<VariableImpl<T>>& root = nullptr) {
         // If a variable has no parents that require gradients, we do not need
         // to propagate gradients at all
         if (!requires_grad())
@@ -184,11 +204,20 @@ public:
         // calculate the gradients of the inputs using registered backward functions
         bool is_last_bwd_call = is_root || _num_bwd_calls == _children_in_graph;
         if (is_last_bwd_call && _backward_fn) {
-            std::vector<T> in_grads = _backward_fn(_grad.value());
+            // If one incoming `prev_grad` has `requires_grad = true`, then all
+            // outgoing gradients will also have `requires_grad = true`, thus
+            // they will create a new computational graph 
+            bool create_graph = _grad.has_value() && _grad.value().requires_grad();
+            std::vector<Variable<T>> in_grads = _backward_fn(_grad.value());
+            
             size_t n_inputs = _parents.size();
             assert(n_inputs == in_grads.size());
 
             for (size_t i = 0; i < n_inputs; ++i) {
+                auto& in_grad = in_grads[i];
+                if (!create_graph) {
+                    in_grad.set_requires_grad(false);
+                }
                 _parents[i]->backward(in_grads[i], retain_graph, this->shared_from_this(), root);
                 if (!retain_graph)
                     _parents[i].reset();
@@ -196,6 +225,7 @@ public:
 
             if (!retain_graph) {
                 _parents.clear();
+                // _children.clear();
                 _backward_fn = nullptr;
             }
             _num_bwd_calls = -1;
@@ -207,13 +237,18 @@ public:
         }
     }
 
-    void set_backward_fn(std::function<std::vector<T>(const T&)> backward_fn) {
+    // void set_backward_fn(std::function<Variable<T>(const Variable<T>&)> backward_fn) {
+    //     _backward_fn = std::move(backward_fn);
+    // }
+
+    void set_backward_fn(std::function<std::vector<Variable<T>>(const Variable<T>&)> backward_fn) {
         _backward_fn = std::move(backward_fn);
     }
 
 private:
     T _value;
-    std::optional<T> _grad;
+    // std::optional<T> _grad;
+    std::optional<Variable<T>> _grad;
     bool _requires_grad;
     bool _is_leaf; // only leaf Variables will have their grad populated during a call to backward()
     int _num_bwd_calls = -1;
@@ -229,5 +264,5 @@ private:
     // they are not part of the computation graph
     std::vector<std::shared_ptr<VariableImpl<T>>> _parents;
     std::vector<std::weak_ptr<VariableImpl<T>>> _children;
-    std::function<std::vector<T>(const T&)> _backward_fn;
+    std::function<std::vector<Variable<T>>(const Variable<T>&)> _backward_fn;
 };

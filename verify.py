@@ -4,10 +4,12 @@ import torch
 torch.set_printoptions(precision=10)
 def f(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     tmp = (x.log() + (-x) * y - y.sin())
+    if (tmp * 2) < 0:
+        tmp = tmp * tmp
     tmp2 = tmp
     for i in range(1, 5):
         tmp = tmp * ((y - x) / i).exp()
-    return tmp / ((2 * x).cos() + tmp2)
+    return tmp / ((2 * x).cos().abs() + tmp2)
 
 
 if __name__ == "__main__":

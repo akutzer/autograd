@@ -76,7 +76,18 @@ namespace OperatorRegistry {
 
         template<typename T>
         std::vector<T> backward(const VariableImpl<T>& var, const T& prev_grad) const {
-            return {prev_grad * -1 / (var.value() * var.value()) };
+            return {prev_grad * -1 / (var.value() * var.value())};
+        }
+    };
+
+    struct Abs {
+        template<typename T>
+        T operator()(const T val) const { return std::abs(val); }
+
+        template<typename T>
+        std::vector<T> backward(const VariableImpl<T>& var, const T& prev_grad) const {
+            T sign = var.value() > 0 ? 1 : var.value() < 0 ? -1 : 0;
+            return {prev_grad * sign};
         }
     };
 
@@ -117,6 +128,16 @@ namespace OperatorRegistry {
         template<typename T>
         std::vector<T> backward(const VariableImpl<T>& var, const T& prev_grad) const {
             return {prev_grad * -std::sin(var.value())};
+        }
+    };
+
+    struct Tan {
+        template<typename T>
+        T operator()(const T val) const { return std::tan(val); }
+
+        template<typename T>
+        std::vector<T> backward(const VariableImpl<T>& var, const T& prev_grad) const {
+            return {prev_grad * 1/(std::cos(var.value()) * std::cos(var.value()))};
         }
     };
 }
@@ -201,6 +222,14 @@ public:
     template<typename A>
     friend Variable<A> operator-(const Variable<A>& var);
 
+    Variable<T> reciprocal() const {
+        return unary_operation(*this, OperatorRegistry::Reciprocal{});
+    }
+
+    Variable<T> abs() const {
+        return unary_operation(*this, OperatorRegistry::Abs{});
+    }
+
     Variable<T> exp() const {
         return unary_operation(*this, OperatorRegistry::Exp{});
     }
@@ -215,6 +244,10 @@ public:
 
     Variable<T> cos() const {
         return unary_operation(*this, OperatorRegistry::Cos{});
+    }
+
+    Variable<T> tan() const {
+        return unary_operation(*this, OperatorRegistry::Tan{});
     }
 
 

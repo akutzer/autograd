@@ -231,4 +231,3 @@ private:
     std::vector<std::weak_ptr<VariableImpl<T>>> _children;
     std::function<std::vector<T>(const T&)> _backward_fn;
 };
-

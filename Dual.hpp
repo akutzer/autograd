@@ -15,6 +15,8 @@ public:
 
     T primal() const { return _primal; }
     T tangent() const { return _tangent; }
+    T value() const { return primal(); }
+    T grad() const { return tangent(); }
 
 
     ///////////////////////////////////////////////////////////////////////////
@@ -37,6 +39,15 @@ public:
         return Dual<PromotedType>(1 / p, -1 / (p * p) * t);
     }
 
+    Dual<typename std::common_type<T, decltype(-std::declval<T>())>::type> abs() const {
+        using PromotedType = typename std::common_type<T, decltype(-std::declval<T>())>::type;
+        PromotedType p = static_cast<PromotedType>(_primal);
+        PromotedType t = static_cast<PromotedType>(_tangent);
+
+        PromotedType sign = p > 0 ? 1 : p < 0 ? -1 : 0;
+        return Dual<PromotedType>(std::abs(p), t * sign);
+    }
+
     Dual<T> log() const {
         return Dual<T>(std::log(_primal), 1 / _primal * _tangent);
     }
@@ -51,6 +62,10 @@ public:
 
     Dual<T> cos() const {
         return Dual<T>(std::cos(_primal), -std::sin(_primal) * _tangent);
+    }
+
+    Dual<T> tan() const {
+        return Dual<T>(std::tan(_primal), 1/(std::cos(_primal) * std::cos(_primal))  * _tangent);
     }
 
     template<typename A>

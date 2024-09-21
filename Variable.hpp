@@ -54,7 +54,7 @@ namespace OperatorRegistry {
 
         template<typename T>
         std::vector<Variable<T>> backward(const Variable<T>& lhs, const Variable<T>& rhs, const Variable<T>& prev_grad) const {
-            return {prev_grad * 1.f / rhs.value(), prev_grad * -lhs.value() / (rhs.value() * rhs.value())};
+            return {prev_grad * 1.f / rhs, prev_grad * -lhs / (rhs * rhs)};
         }
     };
 
@@ -78,7 +78,7 @@ namespace OperatorRegistry {
 
         template<typename T>
          std::vector<Variable<T>> backward(const Variable<T>& var, const Variable<T>& prev_grad) const {
-            return {prev_grad * -1 / (var.value() * var.value())};
+            return {prev_grad * -1.f / (var * var)};
         }
     };
 
@@ -99,7 +99,7 @@ namespace OperatorRegistry {
 
         template<typename T>
          std::vector<Variable<T>> backward(const Variable<T>& var, const Variable<T>& prev_grad) const {
-            return {prev_grad * std::exp(var.value())};
+            return {prev_grad * var.exp()};
         }
     };
 
@@ -109,7 +109,7 @@ namespace OperatorRegistry {
 
         template<typename T>
          std::vector<Variable<T>> backward(const Variable<T>& var, const Variable<T>& prev_grad) const {
-            return {prev_grad * 1.f / var.value()};
+            return {prev_grad * 1.f / var};
         }
     };
 
@@ -119,7 +119,7 @@ namespace OperatorRegistry {
 
         template<typename T>
          std::vector<Variable<T>> backward(const Variable<T>& var, const Variable<T>& prev_grad) const {
-            return {prev_grad * std::cos(var.value())};
+            return {prev_grad * var.cos()};
         }
     };
 
@@ -129,7 +129,7 @@ namespace OperatorRegistry {
 
         template<typename T>
          std::vector<Variable<T>> backward(const Variable<T>& var, const Variable<T>& prev_grad) const {
-            return {prev_grad * -std::sin(var.value())};
+            return {prev_grad * -var.sin()};
         }
     };
 
@@ -139,7 +139,7 @@ namespace OperatorRegistry {
 
         template<typename T>
          std::vector<Variable<T>> backward(const Variable<T>& var, const Variable<T>& prev_grad) const {
-            return {prev_grad * 1.f/(std::cos(var.value()) * std::cos(var.value()))};
+            return {prev_grad * 1.f/(var.cos() * var.cos())};
         }
     };
 }

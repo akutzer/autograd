@@ -225,7 +225,7 @@ public:
 
             if (!retain_graph) {
                 _parents.clear();
-                // _children.clear();
+                _children.clear();
                 _backward_fn = nullptr;
             }
             _num_bwd_calls = -1;

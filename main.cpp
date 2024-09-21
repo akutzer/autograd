@@ -5,34 +5,20 @@
 #include "Dual.hpp"
 
 
-// template<typename T>
-// T f(const T& x, const T& y) {
-//     auto tmp = (x.log() + (-x) * y - y.sin());
-//     if ((tmp * 2.f).value() < 0) {
-//         tmp = tmp * tmp;
-//     }
-//     auto tmp2 = tmp;
-//     for (int i = 1; i < 5; ++i)
-//         tmp = tmp * ((y - x) / static_cast<T>(i)).exp();
-//     auto tmp3 = -(tmp * 5.f).sin(); // unused variable
-//     return tmp / ((static_cast<T>(2) * x).cos().abs() + tmp2);
-// }
-
-
 template<typename T>
 T f(const T& x, const T& y) {
-    auto tmp = x.log() * y;
-    return tmp;
-//     return tmp;
-//     if ((tmp * 2.f).value() < 0) {
-//         tmp = tmp * tmp;
-//     }
-//     auto tmp2 = tmp;
-//     for (int i = 1; i < 5; ++i)
-//         tmp = tmp * ((y - x) / static_cast<T>(i)).exp();
-//     auto tmp3 = -(tmp * 5.f).sin(); // unused variable
-//     return tmp / ((static_cast<T>(2) * x).cos().abs() + tmp2);
+    auto tmp = (x.log() + (-x) * y - y.sin());
+    if ((tmp * 2.f).value() < 0) {
+        tmp = tmp * tmp;
+    }
+    auto tmp2 = tmp;
+    for (int i = 1; i < 5; ++i)
+        tmp = tmp * ((y - x) / static_cast<T>(i)).exp();
+    auto tmp3 = -(tmp * 5.f).sin(); // unused variable
+    return tmp / ((static_cast<T>(2) * x).cos().abs() + tmp2);
 }
+
+
 
 
 int main(int argc, char const *argv[])
@@ -117,15 +103,15 @@ int main(int argc, char const *argv[])
 
     x.zero_grad();
     y.zero_grad();
-    df_dx.backward(1, false, false);    
     std::println("df/dx = {:d}", df_dx);
+    df_dx.backward(1, true, false);    
     std::println("d²f / dx² = {:d}", x.grad().value());
     std::println("d²f / dxdy = {:d}", y.grad().value());
 
     x.zero_grad();
     y.zero_grad();
-    df_dy.backward(1, false, false);    
     std::println("df/dy = {:d}", df_dy);
+    df_dy.backward(1, false, false);    
     std::println("d²f / dydx = {:d}", x.grad().value());
     std::println("d²f / dy² = {:d}", y.grad().value());
 

@@ -257,7 +257,8 @@ private:
 
 template<typename T, typename Op>
 Variable<T> binary_operation(const Variable<T>& lhs, const Variable<T>& rhs, const Op& op) {
-    Variable<T> out(op(lhs.value(), rhs.value()), lhs.requires_grad() || rhs.requires_grad(), false);
+    bool requires_grad = lhs.requires_grad() || rhs.requires_grad();
+    Variable<T> out(op(lhs.value(), rhs.value()), requires_grad, false);
     // Variables created by operations are non-leaf
 
     if (out.requires_grad()) {

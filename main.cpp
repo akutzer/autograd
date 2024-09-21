@@ -11,6 +11,7 @@ T f(const T& x, const T& y) {
     auto tmp2 = tmp;
     for (int i = 1; i < 5; ++i)
         tmp = tmp * ((y - x) / static_cast<T>(i)).exp();
+    auto tmp3 = -(tmp * 5.f).sin(); // unused variable
     return tmp / ((static_cast<T>(2) * x).cos() + tmp2);
 }
 
@@ -27,7 +28,7 @@ int main(int argc, char const *argv[])
     //     auto B = A + 2.f;
     //     auto C = A + 4.f;
     //     D = B * C;
-    //     Y = B;
+    //     Y = B * 1.4f;
     //     std::println("{:d}", Y);
     //     // std::cout << A << std::endl;
     // }

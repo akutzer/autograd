@@ -168,7 +168,7 @@ public:
     const std::shared_ptr<VariableImpl<T>>& variable() const { return _variable; }
 
     void backward(T prev_grad = 1, bool retain_graph = false) {
-        _variable->backward(prev_grad, retain_graph);
+        _variable->backward(prev_grad, retain_graph, nullptr, _variable);
     }
 
     const std::vector<std::shared_ptr<VariableImpl<T>>>& parents() const {

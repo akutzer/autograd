@@ -62,49 +62,26 @@ public:
         }
     }
 
-    // The backward() function computes and propagates gradients for this variable 
-    // in a computational graph. It first accumulates the incoming gradients 
-    // from its children, then determines if this is the last backward call 
-    // for this variable based on the number of backward calls made and the 
-    // number of children it has. If it is the last call and a backward function 
-    // is defined, it computes the gradients for its parents using this function 
-    // and recursively calls their backward() methods to propagate the gradients 
-    // up the graph. If retain_graph is true, the computational graph is preserved 
-    // for future backward calls; otherwise, it clears the parent pointers and 
-    // the backward function to manage memory efficiently. Only leaf nodes retain 
-    // their gradients, while non-leaf nodes reset their gradients to avoid 
-    // incorrect accumulation in future calls.
+    bool part_of_graph(const std::shared_ptr<VariableImpl<T>>& root) const {
+        if (this == root.get())
+            return true;
 
+        for (const auto& child_wp : _children) {
+            if (auto child = child_wp.lock(); child && child->part_of_graph(root))
+                return true;
+        }
+        return false;
+    }
 
-    // The `backward()` function first accumulates the incoming gradients of all children
-    // followed by computing the gradients w.r.t. the inputs using `_backward_fn`
-    // and propagating these to its parents.
-    // The traversal of the computational graph can be though of as a recursive
-    // depth-search up until an ancestor `VariableImpl` with multiple children (a branching point).
-    // If this ancestor `VariableImpl` has unvisited children the traversal backtracks to
-    // a `VariableImpl` with other unvisited parents and continues from there.
-    // If all children of the ancestor `VariableImpl` have been visited then this ancestor `VariableImpl`
-    // can begin with computing the gradients w.r.t. its inputs and continue
-    // the traversal on its first input.
-    // If `retain_graph=true`, then the visits to `this` are counted using 
-    // `_num_bwd_calls`. If `retain_graph=false` then the children are 
-    // deleted after they have propagated to their parents (and they backtrack)
+    int children_in_graph(const std::shared_ptr<VariableImpl<T>>& root) const {
+        int num = 0;
+        for (const auto& child_wp : _children) {
+            if (auto child = child_wp.lock(); child && child->part_of_graph(root))
+                ++num;
+        }
+        return num;
+    }
 
-    // Example of the traversal
-    //        X
-    //        |
-    //        A
-    //       / \
-    //      B   C
-    //       \ /
-    //        D
-    // 
-    // Traversal order:
-    //   D.backward() -> B.backward() -> A.backward() -> backtrack to B
-    //    -> B resets ptr to A -> backtrack to D -> D resets ptr to B
-    //    -> B gets deleted since D._parents was the last living shared_pointer to B
-    //    -> C.backward() -> A.backward() -> X.backward() -> backtrack to A
-    //    -> A resets ptr to X -> C resets ptr to A -> D resets ptr to C
 
     // The `backward()` function computes and propagates gradients for this variable 
     // in a computational graph. It first accumulates the incoming gradients 
@@ -115,7 +92,7 @@ public:
     // and recursively calls their `backward()` methods to propagate the gradients 
     // up the graph. If `retain_graph` is `true`, the computational graph is preserved 
     // for future backward calls; otherwise, it clears the parent pointers and 
-    // the backward function to manage memory efficiently. Only leaf nodes retain 
+    // the backward function to release memory resources. Only leaf nodes retain 
     // their gradients, while non-leaf nodes reset their gradients to avoid 
     // incorrect accumulation in future calls.
 
@@ -129,81 +106,91 @@ public:
     //          X
     //          |
     //          A
-    //         / \
+    //         / \ 
     //        B   C
     //         \ /
-    //          D
+    //          D <- Variable(D)
     //
     // Traversal Steps for Backpropagation without retaining the graph:
-    // 1. Start from the node D:
-    //    - Call D.backward() to begin the backward process.
+    //  1. Start from the Variable D:
+    //     - Call D.backward() to begin the backward process.
+    // 
+    //  2. D computes the number of children that are part of the computational graph & accumulates its gradient and checks if it is the last backward call:
+    //     - Calls B.backward() (its first parent) to propagate gradients upwards.
+    // 
+    //  3. B accumulates the incoming gradient and checks its children:
+    //     - Calls A.backward() (its parent) to continue the upward propagation.
+    // 
+    //  4. A accumulates the incoming gradient and checks its children:
+    //     - Since its children B & C are still both alive return (i.e. backtrack to B)
+    // 
+    //  5. Child of B returns its backward() call
+    //     - B clears the pointer to A
+    //     - Since A was the only child B will now clear its parents & backward_fn
+    //     - B returns its backward() call (i.e. backtracks to D)
+    // 
+    //  6. The first child of D returns its backward() call 
+    //     - D clears the pointer to B
+    //     - B gets deleted because D had the last shared pointer to B
+    //     - D calls C.backward()
+    // 
+    //  7. C accumulates its gradient and checks its children:
+    //     - Calls A.backward() (its parent) to propagate gradients upwards.
+    // 
+    //  8. A accumulates its gradient and checks its children:
+    //     - Since C is the only child alive continue the upward propagation
+    // 
+    //  9. X accumulates its gradient and checks its children:
+    //     - It has no children so it returns (i.e. backtracks to A)
+    // 
+    // 10. Child of A returns its backward() call
+    //     - A clears the pointer to X
+    //     - Since X was the only child, A will now clear its parents & backward_fn
+    //     - A returns its backward() call (i.e. backtracks to C)
+    // 
+    // 11. Child of C returns its backward() call
+    //     - C clears the pointer to A
+    //     - Since A was the only child, C will now clear its parents & backward_fn
+    //     - C returns its backward() call (i.e. backtracks to D)
+    // 
+    // 12. Child of D returns its backward() call
+    //     - D clears the pointer to C
+    //     - Since C was the last child, D will now clear its parents & backward_fn
+    //     - D returns its backward(), which finishes the Backpropagation
     //
-    // 2. D accumulates its gradient and checks its children:
-    //    - Calls B.backward() (its first parent) to propagate gradients upwards.
-    //
-    // 3. B accumulates the incoming gradient and checks its children:
-    //    - Calls A.backward() (its parent) to continue the upward propagation.
-    //
-    // 4. A accumulates the incoming gradient and checks its children:
-    //    - Since its children B & C are still both alive return (i.e. backtrack to B)
-    //
-    // 5. Child of B returns its backward() call
-    //    - B clears the pointer to A
-    //    - Since A was the only child B will now clear its parents & backward_fn
-    //    - B returns its backward() call (i.e. backtracks to D)
-    //
-    // 6. The first child of D returns its backward() call 
-    //    - D clears the pointer to B
-    //    - B gets deleted because D had the last shared pointer to B
-    //    - D calls C.backward()
-    //
-    // 7. C accumulates its gradient and checks its children:
-    //    - Calls A.backward() (its parent) to propagate gradients upwards.
-    //
-    // 8. A accumulates its gradient and checks its children:
-    //    - Since C is the only child alive continue the upward propagation
-    //
-    // 9. X accumulates its gradient and checks its children:
-    //    - It has no children so it returns (i.e. backtracks to A)
-    //
-    //10. Child of A returns its backward() call
-    //    - A clears the pointer to X
-    //    - Since X was the only child, A will now clear its parents & backward_fn
-    //    - A returns its backward() call (i.e. backtracks to C)
-    //
-    //11. Child of C returns its backward() call
-    //    - C clears the pointer to A
-    //    - Since A was the only child, C will now clear its parents & backward_fn
-    //    - C returns its backward() call (i.e. backtracks to D)
-    //
-    //12. Child of D returns its backward() call
-    //    - D clears the pointer to C
-    //    - Since C was the last child, D will now clear its parents & backward_fn
-    //    - D returns its backward(), which finishes the Backpropagation
-
-    void backward(const T& prev_grad, bool retain_graph, const std::shared_ptr<VariableImpl<T>>& child = nullptr) {
+    void backward(const T& prev_grad, bool retain_graph, const std::shared_ptr<VariableImpl<T>>& child = nullptr, const std::shared_ptr<VariableImpl<T>>& root = nullptr) {
         if (!requires_grad())
             return;
-
-        // Accumulate all incoming gradients
-        add_grad(prev_grad);
-
-        // if (is_child(child))
-            // ++_num_bwd_calls;
-
-        ++_num_bwd_calls;
-        int n_children = _children.size();
-        bool is_last_bwd_call = _num_bwd_calls == n_children || n_children == 0;
         
+        // On the first backwards call traverse the computational graph downwards
+        // towards the root and check how many of the children that are alive are
+        // an ancestor of the root. We do this only on the first call because
+        // if the graph is not retained, then during the accumulation process
+        // of the incoming gradients some children might already get deleted
+        // thus reducing the number of children that are part of the graph
+        if (_first_bw_call) {
+            _children_in_graph = children_in_graph(root);
+            _first_bw_call = false;
+        }
+
+        // Accumulate all incoming gradients from valid children or if `this` is
+        // the root of the computational graph
+        bool is_root = this == root.get();
+        if (is_root || is_child(child)) {
+            add_grad(prev_grad);
+            ++_num_bwd_calls;
+        }
+
         // if the incoming gradients of all children have been accumulated
         // calculate the gradients of the inputs using registered backward functions
+        bool is_last_bwd_call = is_root || _num_bwd_calls == _children_in_graph;
         if (is_last_bwd_call && _backward_fn) {
             std::vector<T> in_grads = _backward_fn(_grad.value());
             size_t n_inputs = _parents.size();
             assert(n_inputs == in_grads.size());
 
             for (size_t i = 0; i < n_inputs; ++i) {
-                _parents[i]->backward(in_grads[i], retain_graph, this->shared_from_this());
+                _parents[i]->backward(in_grads[i], retain_graph, this->shared_from_this(), root);
                 if (!retain_graph)
                     _parents[i].reset();
             }
@@ -213,6 +200,9 @@ public:
                 _backward_fn = nullptr; // Clear the lambda to release captured variables
             }
             _num_bwd_calls = 0;
+            _first_bw_call = true;
+            _children_in_graph = 0;
+
 
             // only leaf nodes keep their gradients
             if (!is_leaf())
@@ -230,6 +220,8 @@ private:
     bool _requires_grad;
     bool _is_leaf; // only leaf Variables will have their grad populated during a call to backward()
     int _num_bwd_calls = 0;
+    bool _first_bw_call = true;
+    int _children_in_graph = 0;
     // VariableImpl stores its parents as a shared pointer, enforcing their
     // presence for the `_backward_fn`, while keeping their children only as
     // weak pointers, since if the children are part of the computation

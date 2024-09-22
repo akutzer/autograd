@@ -25,31 +25,43 @@ int main(int argc, char const *argv[])
 {
     using dtype = float;
 
-    // Variable<dtype> A(2, 1), B(3, 1);
-    // auto C = A * B;
-    // auto D = C * -1.f;
-    // // std::println("{:d}", D);
-    // D.backward(1, false, true);
+    Variable<dtype> A(2, 1), B(3, 1);
+    std::println("{:d}", A);
+    // // std::cout << A << std::endl;
+    // // std::cout << std::format("{}", A) << std::endl;
+    // Variable<dtype> D(*A.variable().get());
     // std::println("{:d}", D);
-    // std::println("{:d}", C);
-    // std::println("{:d}", A);
-    // std::println("{:d}", B);
-    
-    // auto dD_dA = A.grad().value();
-    // auto dD_dB = B.grad().value();
-    // A.zero_grad();
-    // B.zero_grad();
-    // dD_dA.backward(1, false);
-    // std::println("{:d}", dD_dA);
-    // std::println("{:d}", A.grad().value());
-    // std::println("{:d}", B.grad().value());
+    auto C = A * B;
+    auto D = C * -1.f;
+    std::println("{:d}", D);
+    D.backward(1, false, true);
+    std::println("{:d}", D);
+    std::println("{:d}", C);
+    std::println("{:d}", A);
+    std::println("{:d}", B);
 
-    // A.zero_grad();
-    // B.zero_grad();
-    // dD_dB.backward(1, false);
-    // std::println("{:d}", dD_dB);
-    // std::println("{:d}", A.grad().value());
-    // std::println("{:d}", B.grad().value());
+    // auto dD_dC = C.grad().value();
+    // auto dD_dD = D.grad().value();
+    // std::println("{:d}", dD_dD);
+    // std::println("{:d}", dD_dC);
+
+    // return 0;
+    
+    auto dD_dA = A.grad().value();
+    auto dD_dB = B.grad().value();
+    A.zero_grad();
+    B.zero_grad();
+    dD_dA.backward(1, false);
+    std::println("{:d}", dD_dA);
+    std::println("{:d}", A.grad().value());
+    std::println("{:d}", B.grad().value());
+
+    A.zero_grad();
+    B.zero_grad();
+    dD_dB.backward(1, false);
+    std::println("{:d}", dD_dB);
+    std::println("{:d}", A.grad().value());
+    std::println("{:d}", B.grad().value());
 
     // return 0;
 
@@ -111,9 +123,12 @@ int main(int argc, char const *argv[])
     x.zero_grad();
     y.zero_grad();
     std::println("df/dy = {:d}", df_dy);
+    // std::println("df/dy = {:d}", y.grad().value());
     df_dy.backward(1, false, false);    
     std::println("d²f / dydx = {:d}", x.grad().value());
     std::println("d²f / dy² = {:d}", y.grad().value());
+
+    return 0;
 
    
     std::println("\n\nOut-of-scope variables are kept alive if they are part of the final computation graph:");

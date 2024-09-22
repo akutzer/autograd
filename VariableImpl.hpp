@@ -28,6 +28,8 @@ public:
             _parents.clear();
             _children.clear();
             _backward_fn = nullptr;
+            // std::cout << (_backward_fn == nullptr) << std::endl;
+            // std::cout << this << " " << _value << " " << (_backward_fn == nullptr) << std::endl;
         }
         return _requires_grad = requires_grad;
     }
@@ -203,13 +205,17 @@ public:
         // if the incoming gradients of all children have been accumulated
         // calculate the gradients of the inputs using registered backward functions
         bool is_last_bwd_call = is_root || _num_bwd_calls == _children_in_graph;
-        if (is_last_bwd_call && _backward_fn) {
+        if (!is_last_bwd_call)
+            return;
+
+        bool create_graph = _grad.has_value() && _grad.value().requires_grad();
+        // _children.clear();
+
+        if (_backward_fn) {
             // If one incoming `prev_grad` has `requires_grad = true`, then all
             // outgoing gradients will also have `requires_grad = true`, thus
             // they will create a new computational graph 
-            bool create_graph = _grad.has_value() && _grad.value().requires_grad();
             std::vector<Variable<T>> in_grads = _backward_fn(_grad.value());
-            
             size_t n_inputs = _parents.size();
             assert(n_inputs == in_grads.size());
 
@@ -219,21 +225,24 @@ public:
                     in_grad.set_requires_grad(false);
                 }
                 _parents[i]->backward(in_grads[i], retain_graph, this->shared_from_this(), root);
-                if (!retain_graph)
+                if (!retain_graph) {
                     _parents[i].reset();
+                }
             }
+        }
 
-            if (!retain_graph) {
-                _parents.clear();
-                _children.clear();
-                _backward_fn = nullptr;
-            }
-            _num_bwd_calls = -1;
-            _children_in_graph = 0;
+        if (!retain_graph) {
+            // std::println("cleared: {}", this->_value);
+            _parents.clear();
+            // _children.clear();
+            _backward_fn = nullptr;
+        }
+        _num_bwd_calls = -1;
+        _children_in_graph = 0;
 
-            // only leaf nodes keep their gradients
-            if (!is_leaf())
-                _grad.reset();
+        // only leaf nodes keep their gradients
+        if (!is_leaf()) {
+            _grad.reset();
         }
     }
 

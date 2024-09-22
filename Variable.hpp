@@ -26,6 +26,11 @@ namespace OperatorRegistry {
         std::vector<Variable<T>> backward(const Variable<T>& lhs, const Variable<T>& rhs, const Variable<T>& prev_grad) const {
             return {prev_grad, prev_grad};
         }
+
+        template<typename T>
+        std::vector<Variable<T>> backward(const std::shared_ptr<VariableImpl<T>>& lhs_impl, const std::shared_ptr<VariableImpl<T>>& rhs_impl, const Variable<T>& prev_grad) const {
+            return {prev_grad, prev_grad};
+        }
     };
 
     struct Sub {
@@ -34,6 +39,11 @@ namespace OperatorRegistry {
 
         template<typename T>
         std::vector<Variable<T>> backward(const Variable<T>& lhs, const Variable<T>& rhs, const Variable<T>& prev_grad) const {
+            return {prev_grad, -prev_grad};
+        }
+
+        template<typename T>
+        std::vector<Variable<T>> backward(const std::shared_ptr<VariableImpl<T>>& lhs_impl, const std::shared_ptr<VariableImpl<T>>& rhs_impl, const Variable<T>& prev_grad) const {
             return {prev_grad, -prev_grad};
         }
     };
@@ -46,6 +56,13 @@ namespace OperatorRegistry {
         std::vector<Variable<T>> backward(const Variable<T>& lhs, const Variable<T>& rhs, const Variable<T>& prev_grad) const {
             return {prev_grad * rhs, prev_grad * lhs};
         }
+        
+        template<typename T>
+        std::vector<Variable<T>> backward(const std::shared_ptr<VariableImpl<T>>& lhs_impl, const std::shared_ptr<VariableImpl<T>>& rhs_impl, const Variable<T>& prev_grad) const {
+            Variable<T> lhs(lhs_impl);
+            Variable<T> rhs(rhs_impl);
+            return {prev_grad * rhs, prev_grad * lhs};
+        }
     };
 
     struct Div {
@@ -54,7 +71,14 @@ namespace OperatorRegistry {
 
         template<typename T>
         std::vector<Variable<T>> backward(const Variable<T>& lhs, const Variable<T>& rhs, const Variable<T>& prev_grad) const {
-            return {prev_grad * 1.f / rhs, prev_grad * -lhs / (rhs * rhs)};
+            return {prev_grad / rhs, prev_grad * -lhs / (rhs * rhs)};
+        }
+
+        template<typename T>
+        std::vector<Variable<T>> backward(const std::shared_ptr<VariableImpl<T>>& lhs_impl, const std::shared_ptr<VariableImpl<T>>& rhs_impl, const Variable<T>& prev_grad) const {
+            Variable<T> lhs(lhs_impl);
+            Variable<T> rhs(rhs_impl);
+            return {prev_grad / rhs, prev_grad * -lhs / (rhs * rhs)};;
         }
     };
 
@@ -70,6 +94,11 @@ namespace OperatorRegistry {
          std::vector<Variable<T>> backward(const Variable<T>& var, const Variable<T>& prev_grad) const {
             return {-prev_grad};
         }
+
+        template<typename T>
+        std::vector<Variable<T>> backward(const std::shared_ptr<VariableImpl<T>>& var_impl, const Variable<T>& prev_grad) const {
+            return {-prev_grad};
+        }        
     };
 
     struct Reciprocal {
@@ -80,6 +109,12 @@ namespace OperatorRegistry {
          std::vector<Variable<T>> backward(const Variable<T>& var, const Variable<T>& prev_grad) const {
             return {prev_grad * -1.f / (var * var)};
         }
+
+        template<typename T>
+        std::vector<Variable<T>> backward(const std::shared_ptr<VariableImpl<T>>& var_impl, const Variable<T>& prev_grad) const {
+            Variable<T> var(var_impl);
+            return {prev_grad * -1.f / (var * var)};
+        } 
     };
 
     struct Abs {
@@ -91,6 +126,13 @@ namespace OperatorRegistry {
             T sign = var.value() > 0 ? 1 : var.value() < 0 ? -1 : 0;
             return {prev_grad * sign};
         }
+
+        template<typename T>
+        std::vector<Variable<T>> backward(const std::shared_ptr<VariableImpl<T>>& var_impl, const Variable<T>& prev_grad) const {
+            // Variable<T> var(var_impl);
+            T sign = var_impl->value() > 0 ? 1 : var_impl->value() < 0 ? -1 : 0;
+            return {prev_grad * sign};
+        } 
     };
 
     struct Exp {
@@ -101,6 +143,12 @@ namespace OperatorRegistry {
          std::vector<Variable<T>> backward(const Variable<T>& var, const Variable<T>& prev_grad) const {
             return {prev_grad * var.exp()};
         }
+
+        template<typename T>
+        std::vector<Variable<T>> backward(const std::shared_ptr<VariableImpl<T>>& var_impl, const Variable<T>& prev_grad) const {
+            Variable<T> var(var_impl);
+            return {prev_grad * var.exp()};
+        } 
     };
 
     struct Log {
@@ -111,6 +159,12 @@ namespace OperatorRegistry {
          std::vector<Variable<T>> backward(const Variable<T>& var, const Variable<T>& prev_grad) const {
             return {prev_grad * 1.f / var};
         }
+
+        template<typename T>
+        std::vector<Variable<T>> backward(const std::shared_ptr<VariableImpl<T>>& var_impl, const Variable<T>& prev_grad) const {
+            Variable<T> var(var_impl);
+            return {prev_grad / var};
+        } 
     };
 
     struct Sin {
@@ -121,6 +175,12 @@ namespace OperatorRegistry {
          std::vector<Variable<T>> backward(const Variable<T>& var, const Variable<T>& prev_grad) const {
             return {prev_grad * var.cos()};
         }
+
+        template<typename T>
+        std::vector<Variable<T>> backward(const std::shared_ptr<VariableImpl<T>>& var_impl, const Variable<T>& prev_grad) const {
+            Variable<T> var(var_impl);
+            return {prev_grad * var.cos()};
+        } 
     };
 
     struct Cos {
@@ -131,6 +191,12 @@ namespace OperatorRegistry {
          std::vector<Variable<T>> backward(const Variable<T>& var, const Variable<T>& prev_grad) const {
             return {prev_grad * -var.sin()};
         }
+
+        template<typename T>
+        std::vector<Variable<T>> backward(const std::shared_ptr<VariableImpl<T>>& var_impl, const Variable<T>& prev_grad) const {
+            Variable<T> var(var_impl);
+            return {prev_grad * -var.sin()};
+        } 
     };
 
     struct Tan {
@@ -141,6 +207,12 @@ namespace OperatorRegistry {
          std::vector<Variable<T>> backward(const Variable<T>& var, const Variable<T>& prev_grad) const {
             return {prev_grad * 1.f/(var.cos() * var.cos())};
         }
+
+        template<typename T>
+        std::vector<Variable<T>> backward(const std::shared_ptr<VariableImpl<T>>& var_impl, const Variable<T>& prev_grad) const {
+            Variable<T> var(var_impl);
+            return {prev_grad / (var.cos() * var.cos())};
+        } 
     };
 }
 
@@ -159,7 +231,14 @@ public:
     Variable(T value, bool requires_grad = false, bool is_leaf = true)
         : _variable(std::make_shared<VariableImpl<T>>(value, requires_grad, is_leaf)) {}
 
-    // Variable(const std::shared_ptr<VariableImpl<T>>& variable) : _variable(variable) {}
+    // Variable(const VariableImpl<T>& variable) {
+    //     std::cout << variable.shared_from_this() << std::endl;
+    //     // _variable = std::make_shared<VariableImpl<T>>(variable.shared_from_this());
+    //     _variable = std::shared_ptr<VariableImpl<T>>(variable);
+    // }
+    // Variable(VariableImpl<T>& variable) : _variable(variable.shared_from_this()) {}
+    Variable(const std::shared_ptr<VariableImpl<T>>& variable) : _variable(variable) {}
+
 
     // Variable(const VariableImpl<T>& variable) {
     //     std::cout << "owo" << std::endl;
@@ -326,9 +405,18 @@ Variable<T> binary_operation(const Variable<T>& lhs, const Variable<T>& rhs, con
         //     }
         //     return std::vector<std::shared_ptr<VariableImpl<T>>>{};
         // });
-        out._variable->set_backward_fn([lhs, rhs, &op](const Variable<T>& prev_grad) {
-            return op.backward(lhs, rhs, prev_grad);
+        out._variable->set_backward_fn([lhs_wp = std::weak_ptr<VariableImpl<T>>(lhs._variable),
+                                        rhs_wp = std::weak_ptr<VariableImpl<T>>(rhs._variable), &op](const Variable<T>& prev_grad) {
+            auto lhs_var = lhs_wp.lock();
+            auto rhs_var = rhs_wp.lock();
+            if (lhs_var && rhs_var) {
+                return op.backward(lhs_var, rhs_var, prev_grad);
+            }
+            return std::vector<Variable<T>>{};
         });
+        // out._variable->set_backward_fn([lhs, rhs, &op](const Variable<T>& prev_grad) {
+        //     return op.backward(lhs, rhs, prev_grad);
+        // });
         
         out._variable->add_parent(lhs._variable);
         out._variable->add_parent(rhs._variable);

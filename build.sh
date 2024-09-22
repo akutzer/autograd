@@ -1,1 +1,1 @@
-g++ -std=gnu++23 -o autograd main.cpp
+g++ -std=gnu++23 -o autograd ./src/main.cpp

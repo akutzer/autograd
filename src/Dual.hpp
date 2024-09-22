@@ -199,9 +199,18 @@ Dual<typename std::common_type<A, B>::type> operator/(const A& lhs, const Dual<B
 template<typename T>
 struct std::formatter<Dual<T>> : std::formatter<std::string> {
     auto format(const Dual<T>& dual, format_context& ctx) const {
-        return formatter<string>::format(
-            std::format("Dual({:.12}, {:.12})", dual.primal(), dual.tangent()), ctx
-        );
+
+        if constexpr (std::is_floating_point_v<T>) {
+            return formatter<string>::format(
+                std::format("Dual({:.12}, {:.12})", dual.primal(), dual.tangent()), ctx
+            );
+        }
+        else {
+            return formatter<string>::format(
+                std::format("Dual({}, {})", dual.primal(), dual.tangent()), ctx
+            );
+        }
+
     }
 };
 

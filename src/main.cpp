@@ -8,13 +8,13 @@
 template<typename T>
 T f(const T& x, const T& y) {
     auto tmp = (x.log() + (-x) * y - y.sin());
-    if ((tmp * 2.f).value() < 0) {
+    if ((tmp * static_cast<T>(2)).value() < 0) {
         tmp = tmp * tmp;
     }
     auto tmp2 = tmp;
     for (int i = 1; i < 5; ++i)
         tmp = tmp * ((y - x) / static_cast<T>(i)).exp();
-    auto tmp3 = -(tmp * 5.f).sin(); // unused variable
+    auto tmp3 = -(tmp * static_cast<T>(5)).sin(); // unused variable
     return tmp / ((static_cast<T>(2) * x).cos().abs() + tmp2);
 }
 
@@ -42,7 +42,7 @@ int main(int argc, char const *argv[])
     //       / \ /
     //      E   D <- backward()
     
-    std::println("Result = {:d}", D);
+    std::println("Result = {:d.8}", D);
 
     // Compute first derivative:
     // `create_graph=true` is needed if one wants to compute higher order derivatives
@@ -51,7 +51,7 @@ int main(int argc, char const *argv[])
     // order derivatives often depends on lower order derivatives.
     D.backward(1, true, true);
     auto dD_dX = X.grad().value(); // copy gradient of X
-    std::println("dD/dX = {:d}", dD_dX);
+    std::println("dD/dX = {:d.8}", dD_dX);
     // use_count = 2, because X.grad() and dD_dX currently reference the same VariableImpl
 
     // Compute second derivative:
@@ -60,14 +60,14 @@ int main(int argc, char const *argv[])
     X.zero_grad();
     dD_dX.backward(1, true, true);
     auto ddD_dXdX = X.grad().value();
-    std::println("d²D/dX² = {:d}", ddD_dXdX);
+    std::println("d²D/dX² = {:d.8}", ddD_dXdX);
 
     // Compute third derivative:
     X.zero_grad();
     ddD_dXdX.backward(1, false, false);
     auto dddD_dXdXdX = X.grad().value();
     X.zero_grad(); // delete grad in X to reduce the use_count to 1 :)
-    std::println("d³D/dX³ = {:d}", dddD_dXdXdX);
+    std::println("d³D/dX³ = {:d.8}", dddD_dXdXdX);
 
 
 
@@ -92,12 +92,12 @@ int main(int argc, char const *argv[])
     Variable<dtype> x(2, true), y(5, true);
     auto out = f(x, y);
     out.backward(1, true, true);
-    std::println("{:d}", out); // print in debug mode
+    std::println("{:d.8}", out); // print in debug mode
     // make copy of gradients
     auto df_dx = x.grad().value();
     auto df_dy = y.grad().value();
-    std::println("df/dx = {:d}", df_dx);
-    std::println("df/dy = {:d}", df_dy);
+    std::println("df/dx = {:d.8}", df_dx);
+    std::println("df/dy = {:d.8}", df_dy);
 
     std::println("\n\n{:~^50}", " Second order derivatives: ");
     x.zero_grad();
@@ -107,14 +107,14 @@ int main(int argc, char const *argv[])
     // graph going out from df_dx could break something in df_dy.backward()
     // in some cases.
     df_dx.backward(1, true, false);    
-    std::println("d²f / dx² = {:d}", x.grad().value());
-    std::println("d²f / dxdy = {:d}", y.grad().value());
+    std::println("d²f / dx² = {:d.8}", x.grad().value());
+    std::println("d²f / dxdy = {:d.8}", y.grad().value());
 
     x.zero_grad();
     y.zero_grad();
     df_dy.backward(1, false, false);    
-    std::println("d²f / dydx = {:d}", x.grad().value());
-    std::println("d²f / dy² = {:d}", y.grad().value());
+    std::println("d²f / dydx = {:d.8}", x.grad().value());
+    std::println("d²f / dy² = {:d.8}", y.grad().value());
 
 
    
@@ -125,9 +125,9 @@ int main(int argc, char const *argv[])
     {
         Variable<dtype> tmp(5, true);
         std::cout << "tmp._variable address: " << tmp.variable() << std::endl;
-        z = tmp * 2.f;
+        z = tmp * static_cast<dtype>(2);
     }
-    std::println("{:d}", z); // z keeps tmp._variable alive since it has a shared pointer to it
+    std::println("{:d.8}", z); // z keeps tmp._variable alive since it has a shared pointer to it
 
 
     std::println("\n\nOut-of-scope variables that are not part of the final computation graph are not kept alive:");
@@ -135,13 +135,13 @@ int main(int argc, char const *argv[])
     {
         Variable<dtype> yy(2, true);
         std::cout << "yy._variable address: " << yy.variable() << std::endl;
-        yy = xx * 2.f;
+        yy = xx * static_cast<dtype>(2);
     }
     std::println("Use counts of the children of xx:");
     for (const auto& child: xx.variable()->children()) {
         std::cout << child.use_count() << std::endl; // xx keeps yy._variable not alive since it has only a weak pointer to it
     }
-    // std::println("{:d}", xx);
+    // std::println("{:d.8}", xx);
 
 
 
@@ -163,16 +163,16 @@ int main(int argc, char const *argv[])
 
     std::println("First call:");
     bwd_out.backward(1, true); // retain the computation graph for a second call
-    std::println("{:d}", bwd_out);
-    std::println("{:d}", a);
-    std::println("{:d}", b);
+    std::println("{:d.8}", bwd_out);
+    std::println("{:d.8}", a);
+    std::println("{:d.8}", b);
     
     std::println("\nSecond call:");
     // call backwards a second time, but this time clear the computation graph
     bwd_out.backward(1, false);
-    std::println("{:d}", bwd_out);
-    std::println("{:d}", a);
-    std::println("{:d}", b);
+    std::println("{:d.8}", bwd_out);
+    std::println("{:d.8}", a);
+    std::println("{:d.8}", b);
 
     return 0;
 }

@@ -107,13 +107,13 @@ namespace OperatorRegistry {
 
         template<typename T>
          std::vector<Variable<T>> backward(const Variable<T>& var, const Variable<T>& prev_grad) const {
-            return {prev_grad * -1.f / (var * var)};
+            return {prev_grad * static_cast<T>(-1) / (var * var)};
         }
 
         // template<typename T>
         // std::vector<Variable<T>> backward(const std::shared_ptr<VariableImpl<T>>& var_impl, const Variable<T>& prev_grad) const {
         //     Variable<T> var(var_impl);
-        //     return {prev_grad * -1.f / (var * var)};
+        //     return {prev_grad * static_cast<T>(-1) / (var * var)};
         // } 
     };
 
@@ -157,7 +157,7 @@ namespace OperatorRegistry {
 
         template<typename T>
          std::vector<Variable<T>> backward(const Variable<T>& var, const Variable<T>& prev_grad) const {
-            return {prev_grad * (1.f / var)};
+            return {prev_grad * (static_cast<T>(1) / var)};
         }
 
         // template<typename T>
@@ -205,7 +205,7 @@ namespace OperatorRegistry {
 
         template<typename T>
          std::vector<Variable<T>> backward(const Variable<T>& var, const Variable<T>& prev_grad) const {
-            return {prev_grad * 1.f/(var.cos() * var.cos())};
+            return {prev_grad * static_cast<T>(1)/(var.cos() * var.cos())};
         }
 
         // template<typename T>
@@ -529,11 +529,12 @@ enum class VariableFormatMode {
     Debug
 };
 
-// custom formatter of Variable to enable `std::println("{}", variable)` and
-// for debug mode `std::println("{:d}", variable)`
+// Custom formatter of Variable to enable `std::println("{}", variable)` and
+// for debug mode `std::println("{:d.5}", variable)` with precision
 template<typename T>
 struct std::formatter<Variable<T>> : std::formatter<std::string> {
-    VariableFormatMode mode = VariableFormatMode::Normal;
+    VariableFormatMode _mode = VariableFormatMode::Normal;
+    std::optional<int> _precision = std::nullopt;
 
     constexpr auto parse(format_parse_context& ctx) -> decltype(ctx.begin()) {
         auto it = ctx.begin();
@@ -541,25 +542,45 @@ struct std::formatter<Variable<T>> : std::formatter<std::string> {
         
         // Check for custom formatting option 'd' for debug mode
         if (it != end && *it == 'd') {
-            mode = VariableFormatMode::Debug;
+            _mode = VariableFormatMode::Debug;
             ++it;
         }
+
+        // Check for optional precision specification (e.g., ".4")
+        if (it != end && *it == '.') {
+            ++it;
+            int parsed_precision = 0;
+            while (it != end && std::isdigit(*it)) {
+                parsed_precision = parsed_precision * 10 + (*it - '0');
+                ++it;
+            }
+            _precision = parsed_precision;
+        }
+
         return it;
     }
 
     auto format(const Variable<T>& var, format_context& ctx) const {
         auto out = ctx.out();
-        out = std::format_to(out, "Variable({:.12}", var.value());
-        if (var.grad().has_value())
-            out = std::format_to(out, ", grad={:.12}", var.grad().value().value());
+
+        int precision = _precision.value_or(4);
+
+        if constexpr (std::is_floating_point_v<T>) {
+            out = std::format_to(out, "Variable({:.{}g}", var.value(), precision);
+            if (var.grad().has_value())
+                out = std::format_to(out, ", grad={:.{}g}", var.grad().value().value(), precision);
+        } else {
+            out = std::format_to(out, "Variable({})", var.value());
+            if (var.grad().has_value())
+                out = std::format_to(out, ", grad={}", var.grad().value().value());
+        }
 
         if (var.requires_grad())
             out = std::format_to(out, ", requires_grad={}", var.requires_grad());
 
         out = std::format_to(out, ")");
 
-        bool debug_mode = true;
-        if (mode == VariableFormatMode::Debug) {
+        if (_mode == VariableFormatMode::Debug) {
             out = std::format_to(out, "\n └─ [Debug Info]\n");
             out = std::format_to(out, "     └─ _variable: 0x{:x}\n", reinterpret_cast<uintptr_t>(var.variable().get()));
             out = std::format_to(out, "     └─ _variable.use_count(): {}\n", var.variable().use_count());
@@ -568,13 +589,23 @@ struct std::formatter<Variable<T>> : std::formatter<std::string> {
             if (var.requires_grad()) {
                 out = std::format_to(out, "     └─ Parents: [");
                 for (const auto& parent : var.parents()) {
-                    out = std::format_to(out, "{:.12} (0x{:x} | {}), ", parent->value(), reinterpret_cast<uintptr_t>(parent.get()), parent.use_count());
+                    if constexpr (std::is_floating_point_v<T>) {
+                        out = std::format_to(out, "{:.{}g} (0x{:x} | {}), ", parent->value(), precision, reinterpret_cast<uintptr_t>(parent.get()), parent.use_count());
+                    } else {
+                        out = std::format_to(out, "{} (0x{:x} | {}), ", parent->value(), reinterpret_cast<uintptr_t>(parent.get()), parent.use_count());
+                    }
                 }
                 out = std::format_to(out, "]\n");
+
                 out = std::format_to(out, "     └─ Children: [");
                 for (const auto& child_wp : var.children()) {
-                    if (std::shared_ptr<VariableImpl<T>> child = child_wp.lock())
-                        out = std::format_to(out, "{:.12} (0x{:x} | {}), ", child->value(), reinterpret_cast<uintptr_t>(child.get()), child.use_count()-1);
+                    if (std::shared_ptr<VariableImpl<T>> child = child_wp.lock()) {
+                        if constexpr (std::is_floating_point_v<T>) {
+                            out = std::format_to(out, "{:.{}g} (0x{:x} | {}), ", child->value(), precision, reinterpret_cast<uintptr_t>(child.get()), child.use_count() - 1);
+                        } else {
+                            out = std::format_to(out, "{} (0x{:x} | {}), ", child->value(), reinterpret_cast<uintptr_t>(child.get()), child.use_count() - 1);
+                        }
+                    }
                 }
                 out = std::format_to(out, "]");
             }

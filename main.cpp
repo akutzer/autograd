@@ -25,67 +25,55 @@ int main(int argc, char const *argv[])
 {
     using dtype = float;
 
-    Variable<dtype> A(2, 1), B(3, 1);
-    std::println("{:d}", A);
-    // // std::cout << A << std::endl;
-    // // std::cout << std::format("{}", A) << std::endl;
-    // Variable<dtype> D(*A.variable().get());
-    // std::println("{:d}", D);
-    auto C = A * B;
-    auto D = C * -1.f;
-    std::println("{:d}", D);
-    D.backward(1, false, true);
-    std::println("{:d}", D);
-    std::println("{:d}", C);
-    std::println("{:d}", A);
-    std::println("{:d}", B);
-
-    // auto dD_dC = C.grad().value();
-    // auto dD_dD = D.grad().value();
-    // std::println("{:d}", dD_dD);
-    // std::println("{:d}", dD_dC);
-
-    // return 0;
     
-    auto dD_dA = A.grad().value();
-    auto dD_dB = B.grad().value();
-    A.zero_grad();
-    B.zero_grad();
-    dD_dA.backward(1, false);
-    std::println("{:d}", dD_dA);
-    std::println("{:d}", A.grad().value());
-    std::println("{:d}", B.grad().value());
+    Variable<dtype> X(2, 1);
+    auto A = X.log();
+    auto B = A.cos();
+    auto C = A.exp();
+    auto D = B + C;
+    auto E = B.exp();
 
-    A.zero_grad();
-    B.zero_grad();
-    dD_dB.backward(1, false);
-    std::println("{:d}", dD_dB);
-    std::println("{:d}", A.grad().value());
-    std::println("{:d}", B.grad().value());
+    // Graph Structure:
+    //          X
+    //          |
+    //          A
+    //         / \ 
+    //        B   C
+    //       / \ /
+    //      E   D <- backward()
+    
+    std::println("Result = {:d}", D);
 
-    // return 0;
+    // Compute first derivative:
+    // `create_graph=true` is needed if one wants to compute higher order derivatives
+    // from the current computational graph. In this case `create_graph=true`
+    // also needs to be set to true, since the computational graph of higher
+    // order derivatives often depends on lower order derivatives.
+    D.backward(1, true, true);
+    auto dD_dX = X.grad().value(); // copy gradient of X
+    std::println("dD/dX = {:d}", dD_dX);
+    // use_count = 2, because X.grad() and dD_dX currently reference the same VariableImpl
 
-    // Variable<dtype> X(0, 1);
-    // Variable<dtype> Y;
-    // Variable<dtype> D;
-    // {
-    //     auto A = X + 1.f;
-    //     auto B = A + 2.f;
-    //     auto C = A + 4.f;
-    //     D = B * C;
-    //     Y = B * 1.4f;
-    //     std::println("{:d}", Y);
-    //     // std::cout << A << std::endl;
-    // }
-    // // auto D = (A + 2.f) * (A + 4.f);
-    // D.backward();
-    // std::println("{:d}", Y);
-    // std::println("{:d}", D);
-    // std::println("{:d}", X);
+    // Compute second derivative:
+    // Resetting of previous gradient necessary, otherwise the second derivative
+    // gets accumulated on top of the first derivative.
+    X.zero_grad();
+    dD_dX.backward(1, true, true);
+    auto ddD_dXdX = X.grad().value();
+    std::println("d²D/dX² = {:d}", ddD_dXdX);
 
-    // return 0;
+    // Compute third derivative:
+    X.zero_grad();
+    ddD_dXdX.backward(1, false, false);
+    auto dddD_dXdXdX = X.grad().value();
+    X.zero_grad(); // delete grad in X to reduce the use_count to 1 :)
+    std::println("d³D/dX³ = {:d}", dddD_dXdXdX);
 
-    std::println("{:~^50}", " Forward mode differentiation: ");
+
+
+
+
+    std::println("\n\n\n\n{:~^50}", " Forward mode differentiation: ");
     // forward mode differentiation needs two calls, first to compute
     // df/ddual_x and then df/ddual_y
     Dual<dtype> dual_x(2, 1), dual_y(5, 0);
@@ -105,33 +93,34 @@ int main(int argc, char const *argv[])
     auto out = f(x, y);
     out.backward(1, true, true);
     std::println("{:d}", out); // print in debug mode
-    std::println("{}", x);
-    std::println("{}", y);
-
-
-    std::println("\n\n{:~^50}", " Second order derivatives: ");
+    // make copy of gradients
     auto df_dx = x.grad().value();
     auto df_dy = y.grad().value();
+    std::println("df/dx = {:d}", df_dx);
+    std::println("df/dy = {:d}", df_dy);
 
+    std::println("\n\n{:~^50}", " Second order derivatives: ");
     x.zero_grad();
     y.zero_grad();
-    std::println("df/dx = {:d}", df_dx);
+    // We need to have retain_graph=true since otherwise the first computational
+    // graph gets also cleared, but I am not sure if retaining the computational
+    // graph going out from df_dx could break something in df_dy.backward()
+    // in some cases.
     df_dx.backward(1, true, false);    
     std::println("d²f / dx² = {:d}", x.grad().value());
     std::println("d²f / dxdy = {:d}", y.grad().value());
 
     x.zero_grad();
     y.zero_grad();
-    std::println("df/dy = {:d}", df_dy);
-    // std::println("df/dy = {:d}", y.grad().value());
     df_dy.backward(1, false, false);    
     std::println("d²f / dydx = {:d}", x.grad().value());
     std::println("d²f / dy² = {:d}", y.grad().value());
 
-    return 0;
 
    
-    std::println("\n\nOut-of-scope variables are kept alive if they are part of the final computation graph:");
+
+
+    std::println("\n\n\n\nOut-of-scope variables are kept alive if they are part of the final computation graph:");
     Variable<dtype> z;
     {
         Variable<dtype> tmp(5, true);
@@ -155,7 +144,10 @@ int main(int argc, char const *argv[])
     // std::println("{:d}", xx);
 
 
-    std::println("\n\n{:~^50}", " Forward mode differentiation: ");
+
+
+
+    std::println("\n\n\n\n{:~^50}", " Forward mode differentiation: ");
     Dual<dtype> aa(2, 1), bb(5, 0);
     auto fwd_out = aa.log() + aa * bb - bb.sin();
     std::println("{}", fwd_out);
